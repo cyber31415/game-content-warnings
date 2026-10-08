@@ -1,0 +1,134 @@
+import type { FastifyInstance } from "fastify";
+
+// Privacy Policy and Terms pages for the Developer Console's required URLs
+// (https://<ebs-host>/privacy and /terms). Plain-language drafts: have them reviewed
+// before release. Keep them accurate if what the EBS stores or logs changes.
+
+/** Bump when the privacy/terms text below changes. */
+export const LEGAL_UPDATED = "October 7, 2026";
+
+type LegalDeps = { extName: string; operator: string; contactEmail: string; updated: string };
+
+const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+
+function page(title: string, d: LegalDeps, body: string): string {
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${esc(title)} · ${esc(d.extName)}</title>
+<style>
+  :root { color-scheme: light dark; --fg: #1d1d22; --bg: #fff; --muted: #55555f; --link: #9a4a00; }
+  @media (prefers-color-scheme: dark) { :root { --fg: #efeff1; --bg: #18181b; --muted: #adadb8; --link: #ffc867; } }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 720px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 28px; margin: 0 0 4px; } h2 { font-size: 19px; margin: 28px 0 6px; }
+  .meta { color: var(--muted); margin: 0 0 24px; } a { color: var(--link); } li { margin: 4px 0; }
+</style>
+</head>
+<body><main>
+<h1>${esc(title)}</h1>
+<p class="meta">${esc(d.extName)} · Last updated ${esc(d.updated)}</p>
+${body}
+</main></body>
+</html>`;
+}
+
+export function privacyHtml(d: LegalDeps): string {
+  const n = esc(d.extName);
+  const mail = `<a href="mailto:${esc(d.contactEmail)}">${esc(d.contactEmail)}</a>`;
+  return page("Privacy Policy", d, `
+<p>${n} is a Twitch panel extension that shows content warnings for the game a channel is streaming,
+using data from DoesTheDogDie.com. It is an unofficial project operated by ${esc(d.operator)}, not affiliated with or
+endorsed by DoesTheDogDie.com. This policy explains what the extension handles and why. In short: we don't collect
+information about viewers.</p>
+
+<h2>What we receive</h2>
+<ul>
+  <li><strong>From Twitch, with every request:</strong> a signed token containing the channel's ID, your role
+  (viewer or broadcaster) and an anonymous, Twitch-generated viewer ID. We use the channel ID to look up the game
+  being streamed. We do not store or log the anonymous viewer ID, and the extension never asks you to share your
+  Twitch identity.</li>
+  <li><strong>Your IP address</strong>, as with any web request. It is used briefly in memory to limit abusive
+  traffic and is not stored.</li>
+</ul>
+
+<h2>What we store</h2>
+<ul>
+  <li><strong>Per channel:</strong> the channel ID, when the extension was last used on it, and, if the
+  broadcaster chose one, a manual game selection. Needed to show the right warnings and to receive Twitch's
+  notification when the channel changes category.</li>
+  <li><strong>Public game data:</strong> Twitch category names and DoesTheDogDie content-warning data, cached to
+  keep the extension fast. Cached DoesTheDogDie data is refreshed and never kept longer than 30 days.</li>
+</ul>
+<p>We do not use cookies, advertising, analytics or tracking, and we do not sell or share personal information.
+The panel does not store anything in your browser.</p>
+
+<h2>Third parties</h2>
+<ul>
+  <li><strong>Twitch</strong> runs the extension platform: <a href="https://www.twitch.tv/p/legal/privacy-notice/">Twitch Privacy Notice</a>.</li>
+  <li><strong>DoesTheDogDie.com</strong> supplies the warning data. Our server requests game data from it; no
+  information about viewers is sent.</li>
+  <li>Our server host processes requests on our behalf.</li>
+</ul>
+
+<h2>Retention and deletion</h2>
+<p>Channel records are deleted on request. Server logs contain no viewer identifiers and are kept for a short
+period for troubleshooting. To have a channel's data removed, email ${mail}.</p>
+
+<h2>Children</h2>
+<p>The extension is available to anyone who can use Twitch under Twitch's own age rules. We do not knowingly
+collect personal information from anyone.</p>
+
+<h2>Changes and contact</h2>
+<p>We will update this page if what we handle changes. Questions: ${mail}.</p>`);
+}
+
+export function termsHtml(d: LegalDeps): string {
+  const n = esc(d.extName);
+  const mail = `<a href="mailto:${esc(d.contactEmail)}">${esc(d.contactEmail)}</a>`;
+  return page("Terms of Use", d, `
+<p>These terms cover your use of ${n} ("the extension"), operated by ${esc(d.operator)}. By installing or using
+the extension you agree to them, in addition to <a href="https://www.twitch.tv/p/legal/terms-of-service/">Twitch's Terms of Service</a>.</p>
+
+<h2>What the extension does</h2>
+<p>It lists content warnings that DoesTheDogDie.com voters have confirmed for the game a channel is streaming.
+Warnings describe the game in general, not necessarily what happens on a particular stream.</p>
+
+<h2>No guarantee of accuracy</h2>
+<p>Warning data is crowd-sourced and may be incomplete, out of date or wrong, and a game may be matched to the
+wrong entry. <strong>The absence of a warning never means the content is absent.</strong> Use the extension as a
+helpful guide, not as a guarantee.</p>
+
+<h2>Data source and affiliation</h2>
+<p>Content-warning data is provided by DoesTheDogDie.com and remains subject to its terms. Powered by
+<a href="https://www.doesthedogdie.com">DoesTheDogDie.com</a>.</p>
+<p><strong>The extension is unofficial.</strong> It is not affiliated with, endorsed by, sponsored by or reviewed by
+DoesTheDogDie.com. "Does the Dog Die?" and related names and logos are trademarks of their owner. Twitch is a
+trademark of Twitch Interactive, Inc.; this extension is not made by Twitch.</p>
+
+<h2>Acceptable use</h2>
+<p>Don't misuse the extension or its server: no attempts to disrupt it, overload it, scrape it, or access data
+you aren't meant to.</p>
+
+<h2>Availability and changes</h2>
+<p>The extension is provided free of charge, "as is" and "as available". We may change, suspend or discontinue it
+at any time, and may update these terms; continued use means you accept the updated terms.</p>
+
+<h2>Liability</h2>
+<p>To the fullest extent permitted by law, we are not liable for any damages arising from your use of, or
+inability to use, the extension or reliance on its content.</p>
+
+<h2>Contact</h2>
+<p>${mail}</p>`);
+}
+
+export function legalRoutes(deps: LegalDeps) {
+  return async (app: FastifyInstance) => {
+    const privacy = privacyHtml(deps);
+    const terms = termsHtml(deps);
+    app.get("/privacy", async (_req, reply) => reply.type("text/html; charset=utf-8").header("Cache-Control", "public, max-age=3600").send(privacy));
+    app.get("/terms", async (_req, reply) => reply.type("text/html; charset=utf-8").header("Cache-Control", "public, max-age=3600").send(terms));
+  };
+}

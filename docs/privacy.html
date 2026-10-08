@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy Policy · Game Content Warnings (Unofficial)</title>
+<style>
+  :root { color-scheme: light dark; --fg: #1d1d22; --bg: #fff; --muted: #55555f; --link: #9a4a00; }
+  @media (prefers-color-scheme: dark) { :root { --fg: #efeff1; --bg: #18181b; --muted: #adadb8; --link: #ffc867; } }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 720px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 28px; margin: 0 0 4px; } h2 { font-size: 19px; margin: 28px 0 6px; }
+  .meta { color: var(--muted); margin: 0 0 24px; } a { color: var(--link); } li { margin: 4px 0; }
+</style>
+</head>
+<body><main>
+<h1>Privacy Policy</h1>
+<p class="meta">Game Content Warnings (Unofficial) · Last updated October 7, 2026</p>
+
+<p>Game Content Warnings (Unofficial) is a Twitch panel extension that shows content warnings for the game a channel is streaming,
+using data from DoesTheDogDie.com. It is an unofficial project operated by cyber31415, not affiliated with or
+endorsed by DoesTheDogDie.com. This policy explains what the extension handles and why. In short: we don't collect
+information about viewers.</p>
+
+<h2>What we receive</h2>
+<ul>
+  <li><strong>From Twitch, with every request:</strong> a signed token containing the channel's ID, your role
+  (viewer or broadcaster) and an anonymous, Twitch-generated viewer ID. We use the channel ID to look up the game
+  being streamed. We do not store or log the anonymous viewer ID, and the extension never asks you to share your
+  Twitch identity.</li>
+  <li><strong>Your IP address</strong>, as with any web request. It is used briefly in memory to limit abusive
+  traffic and is not stored.</li>
+</ul>
+
+<h2>What we store</h2>
+<ul>
+  <li><strong>Per channel:</strong> the channel ID, when the extension was last used on it, and, if the
+  broadcaster chose one, a manual game selection. Needed to show the right warnings and to receive Twitch's
+  notification when the channel changes category.</li>
+  <li><strong>Public game data:</strong> Twitch category names and DoesTheDogDie content-warning data, cached to
+  keep the extension fast. Cached DoesTheDogDie data is refreshed and never kept longer than 30 days.</li>
+</ul>
+<p>We do not use cookies, advertising, analytics or tracking, and we do not sell or share personal information.
+The panel does not store anything in your browser.</p>
+
+<h2>Third parties</h2>
+<ul>
+  <li><strong>Twitch</strong> runs the extension platform: <a href="https://www.twitch.tv/p/legal/privacy-notice/">Twitch Privacy Notice</a>.</li>
+  <li><strong>DoesTheDogDie.com</strong> supplies the warning data. Our server requests game data from it; no
+  information about viewers is sent.</li>
+  <li>Our server host processes requests on our behalf.</li>
+</ul>
+
+<h2>Retention and deletion</h2>
+<p>Channel records are deleted on request. Server logs contain no viewer identifiers and are kept for a short
+period for troubleshooting. To have a channel's data removed, email <a href="mailto:CyberSpaceman09@proton.me">CyberSpaceman09@proton.me</a>.</p>
+
+<h2>Children</h2>
+<p>The extension is available to anyone who can use Twitch under Twitch's own age rules. We do not knowingly
+collect personal information from anyone.</p>
+
+<h2>Changes and contact</h2>
+<p>We will update this page if what we handle changes. Questions: <a href="mailto:CyberSpaceman09@proton.me">CyberSpaceman09@proton.me</a>.</p>
+</main></body>
+</html>

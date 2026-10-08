@@ -1,0 +1,21 @@
+{
+  // Browser build: plain ES modules, readable output (Twitch review requires
+  // human-readable JS), no bundler. Built by scripts/build-frontend.ts.
+  "compilerOptions": {
+    "target": "es2022",
+    "module": "es2022",
+    "moduleResolution": "bundler",
+    "lib": ["es2022", "dom", "dom.iterable"],
+    "types": [],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "allowImportingTsExtensions": true,
+    "rewriteRelativeImportExtensions": true,
+    "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": true,
+    "removeComments": false,
+    "outDir": "../dist/frontend",
+    "rootDir": "src"
+  },
+  "include": ["src"]
+}

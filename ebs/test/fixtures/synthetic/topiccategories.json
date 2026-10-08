@@ -1,0 +1,32 @@
+[
+  {
+    "id": 10,
+    "name": "Fear",
+    "topicSuperCategoryId": 58
+  },
+  {
+    "id": 13,
+    "name": "Spoiler",
+    "topicSuperCategoryId": 58
+  },
+  {
+    "id": 14,
+    "name": "Violence",
+    "topicSuperCategoryId": 50
+  },
+  {
+    "id": 50,
+    "name": "Sexual Assault",
+    "topicSuperCategoryId": 51
+  },
+  {
+    "id": 56,
+    "name": "Animal Death",
+    "topicSuperCategoryId": 54
+  },
+  {
+    "id": 57,
+    "name": "Animal Phobia",
+    "topicSuperCategoryId": 54
+  }
+]

@@ -1,0 +1,44 @@
+[
+  {
+    "id": 153,
+    "name": "a dog dies",
+    "keywords": "dog death, pet dies",
+    "description": "Synthetic test topic.",
+    "topicCategoryId": 56
+  },
+  {
+    "id": 161,
+    "name": "there are jump scares",
+    "keywords": "jumpscare, startle",
+    "description": "Synthetic test topic.",
+    "topicCategoryId": 10
+  },
+  {
+    "id": 165,
+    "name": "there are spiders",
+    "keywords": "spider, arachnid",
+    "description": "Synthetic test topic.",
+    "topicCategoryId": 57
+  },
+  {
+    "id": 182,
+    "name": "someone is sexually assaulted",
+    "keywords": "sexual assault",
+    "description": "Synthetic test topic.",
+    "topicCategoryId": 50
+  },
+  {
+    "id": 188,
+    "name": "there's blood/gore",
+    "keywords": "blood, gore",
+    "description": "Synthetic test topic.",
+    "topicCategoryId": 14
+  },
+  {
+    "id": 222,
+    "name": "the ending is sad",
+    "keywords": "sad ending",
+    "description": "Synthetic test topic.",
+    "topicCategoryId": 13
+  }
+]

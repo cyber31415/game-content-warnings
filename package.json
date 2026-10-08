@@ -1,0 +1,29 @@
+{
+  "name": "twitch-content-warnings",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "node --watch --env-file-if-exists=.env ebs/src/server.ts",
+    "start": "node --env-file-if-exists=.env ebs/src/server.ts",
+    "test": "node --test \"ebs/test/**/*.test.ts\"",
+    "typecheck": "node node_modules/typescript/bin/tsc -p tsconfig.json && node node_modules/typescript/bin/tsc -p frontend/tsconfig.json --noEmit",
+    "build:frontend": "node scripts/build-frontend.ts",
+    "dev:frontend": "node scripts/dev-frontend.ts"
+  },
+  "dependencies": {
+    "@fastify/compress": "^9.2.0",
+    "@fastify/cors": "^11.3.0",
+    "@fastify/rate-limit": "^11.2.0",
+    "fastify": "^5.12.5",
+    "jose": "^6.2.12",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.1",
+    "typescript": "^7.0.2"
+  }
+}

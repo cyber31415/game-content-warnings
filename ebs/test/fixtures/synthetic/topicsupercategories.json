@@ -1,0 +1,32 @@
+[
+  {
+    "id": 50,
+    "name": "Violence",
+    "shortName": "Violence"
+  },
+  {
+    "id": 51,
+    "name": "Sexual Content",
+    "shortName": "Sex"
+  },
+  {
+    "id": 54,
+    "name": "Animals",
+    "shortName": "Animals"
+  },
+  {
+    "id": 55,
+    "name": "Mental Health",
+    "shortName": "Mental"
+  },
+  {
+    "id": 58,
+    "name": "Phobias & Sensory",
+    "shortName": "Phobias"
+  },
+  {
+    "id": 60,
+    "name": "Other",
+    "shortName": "Other"
+  }
+]

@@ -1,0 +1,20 @@
+.venv/
+node_modules/
+dist/
+data/
+*.sqlite
+*.sqlite-journal
+.env
+.env.*
+!.env.example
+ddd_api.txt
+
+# Real DoesTheDogDie API responses: never commit (DDD terms forbid redistribution).
+# Capture locally with scripts/capture-ddd-fixtures.ts
+ebs/test/fixtures/ddd/
+
+# Loose credential files dropped in the project folder: never commit
+twitch_*.txt
+ddd_api.txt
+*secret*.txt
+*creds*.txt

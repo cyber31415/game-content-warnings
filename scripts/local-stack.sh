@@ -14,8 +14,8 @@ VENV="$ROOT/.venv"
 export PATH="$VENV/bin:$PATH"
 cd "$ROOT"
 
-if [[ ! -f ebs/test/fixtures/ddd/topics.json ]]; then
-  echo "Capture DDD fixtures first (needs DDD_API_KEY in .env):"
+if [[ ! -f ebs/test/fixtures/ddd/topics.json ]] || [[ -n "$(find ebs/test/fixtures/ddd/topics.json -mtime +29)" ]]; then
+  echo "DDD fixtures missing or older than 30 days. Capture them (needs DDD_API_KEY in .env):"
   echo "  node --env-file=.env scripts/capture-ddd-fixtures.ts"
   exit 1
 fi

@@ -9,12 +9,13 @@
 //
 //   node scripts/mock-ddd.ts            (listens on http://127.0.0.1:8095)
 import { createServer } from "node:http";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 
 const fixture = (name: string): unknown => {
   const url = new URL(`../ebs/test/fixtures/ddd/${name}.json`, import.meta.url);
-  if (!existsSync(url)) {
-    console.error("Missing real DDD fixtures. Capture them once with your own key:\n  node --env-file=.env scripts/capture-ddd-fixtures.ts");
+  // DDD terms: cached data must be refreshed at least every 30 days.
+  if (!existsSync(url) || Date.now() - statSync(url).mtimeMs > 30 * 24 * 60 * 60_000) {
+    console.error("DDD fixtures missing or older than 30 days. Capture them with your own key:\n  node --env-file=.env scripts/capture-ddd-fixtures.ts");
     process.exit(1);
   }
   return JSON.parse(readFileSync(url, "utf8"));

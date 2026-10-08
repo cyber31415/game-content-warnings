@@ -11,7 +11,7 @@ import { TEST_SECRET_B64, fixture as load, hasRealFixtures } from "./helpers.ts"
 
 
 if (!hasRealFixtures) {
-  test("real DDD fixture tests", { skip: "run scripts/capture-ddd-fixtures.ts with your DDD key to enable" }, () => {});
+  test("real DDD fixture tests", { skip: "missing or older than 30 days: run scripts/capture-ddd-fixtures.ts with your DDD key" }, () => {});
 } else {
   const dict = buildDictionary(
     {

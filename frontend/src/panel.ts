@@ -116,8 +116,9 @@ function renderBody(): void {
   // Search forces matching categories open, so expand/collapse has nothing to do while searching.
   expandAll.hidden = !hasList || query.trim() !== "";
   if (!hasList) {
-    const showing: WarningsResponse | "loading" =
-      data !== "loading" && data.status === "ok" && !dict ? (topicsFailed ? { status: "error" } : "loading") : data;
+    // Waiting on the topic dictionary only matters when there are warnings to name.
+    const needsDict = data !== "loading" && data.status === "ok" && data.warnings.length > 0 && !dict;
+    const showing: WarningsResponse | "loading" = needsDict ? (topicsFailed ? { status: "error" } : "loading") : data;
     body.replaceChildren(renderStatus(showing));
     return;
   }
@@ -159,6 +160,10 @@ function apply(next: WarningsResponse): boolean {
 
 async function ensureTopics(): Promise<void> {
   if (!token || data === "loading" || data.status !== "ok") return;
+  if (data.warnings.length === 0) {
+    topicsFailed = false; // nothing to name: the dictionary isn't needed
+    return;
+  }
   if (dict?.version === data.topicsVersion) return;
   try {
     const loaded = await loadTopics(token, data.topicsVersion);

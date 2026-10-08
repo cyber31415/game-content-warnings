@@ -13,6 +13,7 @@ const DAY = 24 * 60 * MINUTE;
 export const TTL = {
   channelGame: 90_000, // Helix channel -> category lookup
   channelHintRefresh: 10_000, // min age before a frontend hint can force a re-lookup
+  eventTrust: 30_000, // an EventSub category beats a disagreeing Helix answer for this long
   response: 60_000, // assembled response per (game, override)
   matched: 30 * DAY,
   unmatched: 7 * DAY, // no_match / low_confidence: retry periodically
@@ -152,10 +153,13 @@ export class WarningsService {
       const startedAt = this.now();
       const ch = await this.helix.getChannel(channelId);
       const game = { id: ch?.game_id ?? "", name: ch?.game_name ?? "" };
-      // An EventSub update that landed while we waited is newer than this answer: keep it.
-      // (Other Helix answers don't block this one; the latest Helix response is as fresh as any.)
+      // An EventSub update is authoritative while recent: Helix can lag behind it for a few seconds,
+      // so a disagreeing Helix answer doesn't replace it (LiveUpdates re-checks Helix and corrects
+      // a genuinely stale event). Other Helix answers don't block this one.
       const latest = this.channelGames.get(channelId);
-      if (latest?.source === "event" && latest.at > startedAt) return latest.game;
+      if (latest?.source === "event" && latest.game.id !== game.id && (latest.at > startedAt || this.now() - latest.at < TTL.eventTrust)) {
+        return latest.game;
+      }
       this.channelGames.set(channelId, { game, at: this.now(), source: "helix" });
       return game;
     });

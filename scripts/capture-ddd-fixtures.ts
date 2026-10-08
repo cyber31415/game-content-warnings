@@ -2,6 +2,9 @@
 // tests can be checked against reality. Costs ~8 requests of the monthly quota.
 //
 //   node --env-file=.env scripts/capture-ddd-fixtures.ts
+//
+// DDD terms: these are cached DDD data. Re-capture (or delete ebs/test/fixtures/ddd/) at least every
+// 30 days; tests and the mock server treat captures older than 30 days as missing.
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { DddClient } from "../ebs/src/ddd/client.ts";

@@ -226,3 +226,14 @@ test("a newer Helix answer isn't discarded because another lookup finished in be
   await slow;
   assert.equal(fresh.name, "New");
 });
+
+test("a lagging Helix answer right after an EventSub change doesn't revert it", async () => {
+  const { svc, up, advance } = service();
+  up.channelGame = { id: "1001", name: "The Last of Us Part I" }; // Helix still reports the old game
+  svc.setChannelGame("12345", { id: "2002", name: "Celeste" }); // EventSub: switched to Celeste
+  advance(2_000);
+  const fresh = await svc.channelGame("12345", undefined, { fresh: true }); // e.g. a correction save
+  assert.equal(fresh.name, "Celeste");
+  advance(TTL.eventTrust); // after the trust window, Helix is believed again
+  assert.equal((await svc.channelGame("12345", undefined, { fresh: true })).name, "The Last of Us Part I");
+});

@@ -47,14 +47,19 @@ import { AppTokenManager, HelixClient } from "../src/twitch/helix.ts";
 import { DddClient } from "../src/ddd/client.ts";
 import { Store } from "../src/cache/db.ts";
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 
 /**
  * Real DDD responses captured by scripts/capture-ddd-fixtures.ts. Not committed (DDD's terms
  * don't allow redistributing their data), so tests that need them skip when they're absent.
  */
 const REAL_FIXTURES = ["topics", "topiccategories", "topicsupercategories", "itemtypes", "search-the-last-of-us", "search-celeste", "item-14438", "item-17871"];
-export const hasRealFixtures = REAL_FIXTURES.every((f) => existsSync(new URL(`./fixtures/ddd/${f}.json`, import.meta.url)));
+/** DDD terms: cached DDD data must be refreshed at least every 30 days; older captures count as missing. */
+const FIXTURE_MAX_AGE_MS = 30 * 24 * 60 * 60_000;
+export const hasRealFixtures = REAL_FIXTURES.every((f) => {
+  const url = new URL(`./fixtures/ddd/${f}.json`, import.meta.url);
+  return existsSync(url) && Date.now() - statSync(url).mtimeMs < FIXTURE_MAX_AGE_MS;
+});
 export const fixture = (name: string): unknown =>
   JSON.parse(readFileSync(new URL(`./fixtures/ddd/${name}.json`, import.meta.url), "utf8"));
 

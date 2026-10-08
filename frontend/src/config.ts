@@ -63,6 +63,7 @@ async function load(): Promise<void> {
   if (!token) return;
   try {
     state = await ebs<BroadcasterConfigResponse>(token, "/api/broadcaster/config");
+    if (message.startsWith("Still loading")) announce("");
     if (state.current.status !== "error") loadRetries = 0;
     else if (loadRetries < LOAD_MAX_RETRIES) scheduleReload();
   } catch {
@@ -158,6 +159,13 @@ function render(): void {
     finish(parts);
     return;
   }
+  if (state.current.status === "error") {
+    // No category info to correct against right now; corrections would have nothing to apply to.
+    match.append(el("p", { text: loadRetries > 0 && loadRetries <= LOAD_MAX_RETRIES ? "Retrying automatically…" : "Reopen this page in a minute to try again." }));
+    parts.push(match);
+    finish(parts);
+    return;
+  }
   if (state.current.status === "ok") match.append(el("p", {}, [externalLink(state.current.ddd.url, "Check it on DoesTheDogDie")]));
   if (state.overrideDddItemId !== null) {
     const reset = el("button", { text: "Use automatic matching", attrs: { type: "button" } });
@@ -220,11 +228,18 @@ function render(): void {
 }
 
 function finish(parts: (Node | null)[]): void {
+  // Background re-renders (automatic reloads) keep whatever the user was focused on.
+  const active = document.activeElement;
+  const keepId = !focusAfterRender && active instanceof HTMLElement && content.contains(active) && active.id ? active.id : null;
+  const selection = active instanceof HTMLInputElement ? { start: active.selectionStart, end: active.selectionEnd } : null;
   parts.push(el("div", { className: "credits" }, [disclaimer(), attribution()]));
   content.replaceChildren(...parts.filter((p): p is Node => p !== null));
-  if (focusAfterRender) {
-    document.getElementById(focusAfterRender)?.focus();
-    focusAfterRender = null;
+  const target = focusAfterRender ?? keepId;
+  focusAfterRender = null;
+  if (target) {
+    const el2 = document.getElementById(target);
+    el2?.focus();
+    if (keepId && selection && el2 instanceof HTMLInputElement) el2.setSelectionRange(selection.start, selection.end);
   }
 }
 

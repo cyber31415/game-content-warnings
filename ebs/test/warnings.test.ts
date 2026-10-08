@@ -180,3 +180,24 @@ test("DDD outage with nothing cached -> error status, not an exception", async (
   up.dddDown = true;
   assert.deepEqual(await svc.forChannel("12345"), { status: "error" });
 });
+
+test("a category lookup that started before an EventSub update can't overwrite it", async () => {
+  const d = testDeps();
+  let now = 1_000_000_000_000;
+  let release!: () => void;
+  const slow = new Promise<void>((r) => (release = r));
+  const helix = {
+    getChannel: async () => {
+      await slow; // still waiting on Twitch when the EventSub notification arrives
+      return { broadcaster_id: "12345", broadcaster_name: "x", game_id: "1001", game_name: "The Last of Us Part I" };
+    },
+  } as never;
+  const corrections = new Corrections({ store: d.store, helix, extensionSecret: new Uint8Array(32), ownerId: "1000", mode: "local" });
+  const svc = new WarningsService({ store: d.store, ddd: d.ddd, helix, topics: new TopicCatalog({ store: d.store, ddd: d.ddd }), corrections, now: () => now });
+  const lookup = svc.channelGame("12345");
+  now += 1000;
+  svc.setChannelGame("12345", { id: "2002", name: "Celeste" });
+  release();
+  assert.equal((await lookup).name, "Celeste");
+  assert.equal((await svc.channelGame("12345")).name, "Celeste");
+});

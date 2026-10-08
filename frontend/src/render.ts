@@ -67,12 +67,12 @@ export function renderGroups(groups: Group[], opts: GroupsOptions): HTMLElement 
   );
 }
 
-/** Just the trigger. A "few votes" tag marks topics confirmed by fewer than 3 voters. */
+/** Just the trigger. A "few votes" tag marks topics with fewer than 3 votes in total. */
 function topicItem(t: Group["topics"][number]): HTMLElement {
   const fewVotes = t.yes + t.no < 3;
   return el("li", { className: "topic" }, [
     el("span", { text: capitalize(t.name) }),
-    fewVotes ? el("span", { className: "tag", text: "few votes", attrs: { title: "Confirmed by fewer than 3 voters so far" } }) : null,
+    fewVotes ? el("span", { className: "tag", text: "few votes", attrs: { title: "Fewer than 3 votes so far" } }) : null,
   ]);
 }
 

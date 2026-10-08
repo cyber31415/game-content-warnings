@@ -46,7 +46,7 @@ Facts below were checked against docs/sources during research unless marked othe
 | **DDD terms** | **Read** (see `docs/ddd-terms-notes.md`): Free tier 30/min + 5,000/month, **non-commercial only**; attribution "Powered by DoesTheDogDie.com" required; cache ≤ 30 days. **Open: is a free extension on monetized channels "commercial"? Ask DDD before launch** |
 | DDD API key | From the DDD profile page (account required) |
 | Privacy policy / EULA URLs | Confirmed required before review submission |
-| DDD video-game `itemTypeId` / exact v3 JSON | Verified 2026-10-07 with a real key: Video Game = `itemTypeId` 17 / `itemTypeName` "Video Game"; schemas validate (fixtures in `ebs/test/fixtures/ddd/`). Popular games carry ~200 topic stats, so payloads can exceed 5 KB. DDD web search has no deep-link URL |
+| DDD video-game `itemTypeId` / exact v3 JSON | Verified 2026-10-07 with a real key: Video Game = `itemTypeId` 17 / `itemTypeName` "Video Game"; schemas validate (fixtures captured locally into `ebs/test/fixtures/ddd/`, gitignored: DDD data is never committed). Popular games carry ~200 topic stats, so payloads can exceed 5 KB. DDD web search has no deep-link URL |
 | Max zip size | Not verified |
 
 ## 3. Architecture

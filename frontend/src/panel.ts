@@ -26,6 +26,8 @@ let topicsFailed = false;
 let visible = true;
 let pollTimer: number | undefined;
 let inflight = false;
+/** A refresh was requested while one was in flight; run another when it finishes. */
+let refreshQueued = false;
 let hintRetries = 0;
 let errorDelay = ERROR_RETRY_MS;
 /** Bumped whenever data is applied, so an older in-flight response can't overwrite newer data. */
@@ -158,25 +160,37 @@ async function ensureTopics(): Promise<void> {
 }
 
 async function refresh(): Promise<void> {
-  if (!token || inflight) return;
+  if (!token) return;
+  if (inflight) {
+    refreshQueued = true;
+    return;
+  }
   inflight = true;
   const startedAt = generation;
+  const dictBefore = dict;
+  const topicsFailedBefore = topicsFailed;
   let failed = false;
+  let changed = false;
   try {
     const q = gameHint ? `?hint=${encodeURIComponent(gameHint)}` : "";
     const next = await ebs<WarningsResponse>(token, `/api/warnings${q}`);
     failed = next.status === "error";
     // A PubSub update arrived while we were waiting: it's newer, keep it.
-    if (generation === startedAt) apply(next);
+    if (generation === startedAt) changed = apply(next);
     await ensureTopics();
   } catch {
     failed = true;
-    if (data === "loading") apply({ status: "error" });
+    if (data === "loading") changed = apply({ status: "error" });
   } finally {
     inflight = false;
   }
-  render();
+  // Re-render only when something visible changed, so polls don't disturb keyboard/screen-reader users.
+  if (changed || dict !== dictBefore || topicsFailed !== topicsFailedBefore) render();
   scheduleNext(failed || topicsFailed);
+  if (refreshQueued) {
+    refreshQueued = false;
+    void refresh();
+  }
 }
 
 /** Next check: quick backoff after failures, a few retries while the EBS lags a category change, else the poll. */

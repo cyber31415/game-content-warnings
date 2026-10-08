@@ -1,5 +1,5 @@
 // Captures real DoesTheDogDie v3 responses into ebs/test/fixtures/ddd/ so schemas and
-// tests can be checked against reality. Costs ~6 requests of the monthly quota.
+// tests can be checked against reality. Costs ~8 requests of the monthly quota.
 //
 //   node --env-file=.env scripts/capture-ddd-fixtures.ts
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -23,6 +23,8 @@ async function save(name: string, path: string): Promise<unknown> {
 const itemTypes = (await save("itemtypes", "/api/v3/itemtypes")) as { id: number; name: string }[];
 console.log("item types:", itemTypes.map((t) => `${t.id}=${t.name}`).join(", "));
 await save("topics", "/api/v3/topics");
+await save("topiccategories", "/api/v3/topiccategories");
+await save("topicsupercategories", "/api/v3/topicsupercategories");
 
 for (const q of ["The Last of Us", "Celeste"]) {
   const raw = await save(`search-${q.toLowerCase().replace(/\W+/g, "-")}`, `/api/v3/items?q=${encodeURIComponent(q)}`);

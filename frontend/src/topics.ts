@@ -2,15 +2,20 @@ import type { ExtraTopics, TopicDictionary, Warning } from "../../shared/api.d.t
 import { ebs } from "./api.ts";
 
 let cached: TopicDictionary | undefined;
-let inflight: Promise<TopicDictionary> | undefined;
+let inflight: { version: string; promise: Promise<TopicDictionary> } | undefined;
 
 /** Loads DDD's topic dictionary once per page (and per catalogue version). */
 export async function loadTopics(token: string, version: string): Promise<TopicDictionary> {
   if (cached && cached.version === version) return cached;
-  inflight ??= ebs<TopicDictionary>(token, `/api/topics?v=${encodeURIComponent(version)}`)
-    .then((d) => (cached = d))
-    .finally(() => (inflight = undefined));
-  return inflight;
+  if (inflight?.version !== version) {
+    const promise = ebs<TopicDictionary>(token, `/api/topics?v=${encodeURIComponent(version)}`)
+      .then((d) => (cached = d))
+      .finally(() => {
+        if (inflight?.promise === promise) inflight = undefined;
+      });
+    inflight = { version, promise };
+  }
+  return inflight.promise;
 }
 
 export type ShownTopic = Warning & { name: string; keywords: string };

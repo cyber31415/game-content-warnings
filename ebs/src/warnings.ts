@@ -148,8 +148,12 @@ export class WarningsService {
     if (!opts.fresh && cached && age < TTL.channelGame && !(hintDiffers && age >= TTL.channelHintRefresh)) return cached.game;
 
     return this.flights.run(`channel:${channelId}${opts.fresh ? ":fresh" : ""}`, async () => {
+      const startedAt = this.now();
       const ch = await this.helix.getChannel(channelId);
       const game = { id: ch?.game_id ?? "", name: ch?.game_name ?? "" };
+      // An EventSub update that landed while we waited is newer than this answer: keep it.
+      const latest = this.channelGames.get(channelId);
+      if (latest && latest.at > startedAt) return latest.game;
       this.channelGames.set(channelId, { game, at: this.now() });
       return game;
     });

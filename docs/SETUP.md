@@ -38,7 +38,7 @@ Screenshots land in `data/screenshots/`.
 1. Create a DDD account, copy the API key from your profile page.
 2. `cp .env.example .env`, fill `DDD_API_KEY`.
 3. `node --env-file=.env scripts/capture-ddd-fixtures.ts` captures real responses and checks
-   them against our schemas (~6 requests). Confirm which `itemTypeName` video games use.
+   them against our schemas (~8 requests). Confirm which `itemTypeName` video games use.
 4. Read `docs/ddd-terms-notes.md`. Ask DDD whether a free Twitch extension used on monetized
    channels counts as commercial use **before** public release.
 

@@ -86,8 +86,12 @@ export async function buildServer(deps: Deps): Promise<FastifyInstance> {
     await api.register(broadcasterRoutes({ ddd, warnings, live }));
   });
 
-  // DDD terms: never keep cached data longer than 30 days.
-  const purge = setInterval(() => store.purgeItemsOlderThan(Date.now() - TTL.itemMaxStale), 6 * 60 * 60_000);
+  // DDD terms: never keep cached data longer than 30 days. Purge at startup and every 6 h with a
+  // cutoff one interval early, so no row can outlive 30 days between runs.
+  const PURGE_EVERY = 6 * 60 * 60_000;
+  const runPurge = () => store.purgeItemsOlderThan(Date.now() - (TTL.itemMaxStale - PURGE_EVERY));
+  runPurge();
+  const purge = setInterval(runPurge, PURGE_EVERY);
   purge.unref();
   app.addHook("onClose", async () => clearInterval(purge));
 

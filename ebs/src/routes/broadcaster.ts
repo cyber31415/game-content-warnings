@@ -4,6 +4,7 @@ import type { BroadcasterConfigResponse, DddSearchResult } from "../../../shared
 import type { DddClient } from "../ddd/client.ts";
 import type { LiveUpdates } from "../live.ts";
 import type { WarningsService } from "../warnings.ts";
+import { CorrectionLimitError, MAX_CORRECTIONS } from "../corrections.ts";
 
 const OverrideBody = z.object({
   dddItemId: z.number().int().positive().max(2_147_483_647).nullable(),
@@ -88,6 +89,9 @@ export function broadcasterRoutes(deps: { ddd: DddClient; warnings: WarningsServ
       try {
         await deps.warnings.corrections.set(channelId, game.id, dddItemId);
       } catch (err) {
+        if (err instanceof CorrectionLimitError) {
+          return reply.code(409).send({ error: `This channel already has ${MAX_CORRECTIONS} saved corrections. Switch some back to automatic first.` });
+        }
         request.log.warn({ channelId, err: String(err) }, "saving correction failed");
         return reply.code(503).send({ error: "Couldn't save right now. Try again in a minute." });
       }

@@ -159,6 +159,13 @@ test("privacy and terms pages render with the configured contact", async () => {
   assert.match((await a.inject({ url: "/terms" })).body, /absence of a warning never means/);
 });
 
+test("curated manual mappings are applied at startup", async () => {
+  const { store } = await app();
+  const row = store.getGameMap("778386489");
+  assert.equal(row?.source, "manual");
+  assert.equal(row?.dddItemId, 14438);
+});
+
 test("config validation", () => {
   assert.throws(() => testConfig({ NODE_ENV: "production" }), /CONTACT_EMAIL/);
   assert.throws(() => testConfig({ TWITCH_EXT_SECRET: "not base64!" }), /base64/);

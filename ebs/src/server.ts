@@ -15,6 +15,7 @@ import { Store } from "./cache/db.ts";
 import { TTL, WarningsService } from "./warnings.ts";
 import { LiveUpdates } from "./live.ts";
 import { TopicCatalog } from "./topics.ts";
+import { MANUAL_MAPPINGS } from "./match/manual-mappings.ts";
 
 export type Deps = { config: Config; helix: HelixClient; ddd: DddClient; store: Store };
 
@@ -31,6 +32,7 @@ export async function buildServer(deps: Deps): Promise<FastifyInstance> {
           },
   });
 
+  for (const m of MANUAL_MAPPINGS) store.putManualMatch(m.twitchGameId, m.twitchName, m.dddItemId);
   const topics = new TopicCatalog({ store, ddd, log: app.log });
   const warnings = new WarningsService({ store, ddd, helix, topics, log: app.log });
   const live = new LiveUpdates({

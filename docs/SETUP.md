@@ -86,6 +86,8 @@ appears in the extension directory for any streamer to activate.
 
 ## Operations
 - `docs/match-audit-*.md` and the `game_map` table (`status != 'matched'`) show categories that
-  need a manual mapping: `node --env-file=.env scripts/map-game.ts list | set | clear`.
+  need a manual mapping. Permanent pins belong in `ebs/src/match/manual-mappings.ts` (applied at
+  every start, so they reach any server); `node --env-file=.env scripts/map-game.ts list | set | clear`
+  inspects or edits one database directly.
 - Watch the DDD quota: `GET /health` reports `dddQuota` (from DDD's rate-limit headers). 429s open a local
   circuit until `Retry-After`; viewers keep seeing cached data meanwhile.

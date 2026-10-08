@@ -33,6 +33,8 @@ let errorDelay = ERROR_RETRY_MS;
 /** Bumped whenever data is applied, so an older in-flight response can't overwrite newer data. */
 let generation = 0;
 let query = "";
+/** Category the panel last showed, remembered across no-category/error states. */
+let lastCategoryId: string | undefined;
 let announceTimer: number | undefined;
 const openGroups = new Set<number>();
 
@@ -148,18 +150,23 @@ function apply(next: WarningsResponse): boolean {
   // Never replace good data with a transient error; keep showing what we have.
   if (next.status === "error" && hasGoodData()) return false;
   if (data !== "loading" && JSON.stringify(data) === JSON.stringify(next)) return false;
-  if (data !== "loading" && "category" in data && "category" in next && data.category.id !== next.category.id) {
-    openGroups.clear(); // new game: start collapsed again
+  // A different game than the one last shown (even with a no-category step in between): start collapsed.
+  if ("category" in next && next.category.id !== lastCategoryId) {
+    openGroups.clear();
+    lastCategoryId = next.category.id;
+    announcer.textContent = `Content warnings for ${next.category.name}`;
   }
-  const firstOrChanged = data === "loading" || !("category" in data) || !("category" in next) || data.category.id !== next.category.id;
   data = next;
   generation++;
-  if (firstOrChanged && "category" in next) announcer.textContent = `Content warnings for ${next.category.name}`;
   return true;
 }
 
 async function ensureTopics(): Promise<void> {
-  if (!token || data === "loading" || data.status !== "ok") return;
+  if (data === "loading" || data.status !== "ok") {
+    topicsFailed = false; // the dictionary only matters for "ok" data
+    return;
+  }
+  if (!token) return;
   if (data.warnings.length === 0) {
     topicsFailed = false; // nothing to name: the dictionary isn't needed
     return;

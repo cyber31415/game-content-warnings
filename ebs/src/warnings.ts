@@ -266,7 +266,8 @@ export class WarningsService {
         this.store.putItem(itemId, JSON.stringify(item), now);
         return { item, fetchedAt: now };
       } catch (err) {
-        if (cached && age < TTL.itemMaxStale) {
+        // Stop a response-cache lifetime early, so an assembled response can't outlive 30 days either.
+        if (cached && age < TTL.itemMaxStale - TTL.response) {
           this.log.warn({ itemId, err: String(err) }, "serving stale DDD item");
           return { item: DddItemDetailSchema.parse(JSON.parse(cached.payloadJson)), fetchedAt: cached.fetchedAt };
         }

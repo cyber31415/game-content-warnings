@@ -61,6 +61,7 @@ fi
 
 node scripts/mock-ddd.ts > data/mock-ddd.log 2>&1 &
 pids+=($!)
+wait_for http://127.0.0.1:8095/ || { cat data/mock-ddd.log; exit 1; }
 node --env-file=.env.mock ebs/src/server.ts > data/ebs.log 2>&1 &
 pids+=($!)
 wait_for http://127.0.0.1:8081/health

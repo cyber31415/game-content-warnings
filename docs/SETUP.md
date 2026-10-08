@@ -24,7 +24,8 @@ npm test && npm run typecheck
 
 ## 1. Try it locally against mocks (needs only a DDD API key)
 The mock DDD server replays real DDD responses, which aren't committed (DDD's terms forbid
-redistributing them). Capture them once with your own key first (see step 2):
+redistributing them). Capture them with your own key first (see step 2), and again at least every
+30 days (older captures count as missing):
 `node --env-file=.env scripts/capture-ddd-fixtures.ts`.
 
 ```fish

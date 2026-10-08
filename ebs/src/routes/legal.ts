@@ -6,7 +6,7 @@ import type { FastifyInstance } from "fastify";
 // release, and keep them accurate if what the EBS stores or logs changes.
 
 /** Bump when the privacy/terms text below changes. */
-export const LEGAL_UPDATED = "October 7, 2026";
+export const LEGAL_UPDATED = "October 8, 2026";
 
 type LegalDeps = { extName: string; operator: string; contactEmail: string; updated: string };
 
@@ -57,8 +57,9 @@ information about viewers.</p>
 
 <h2>What we store</h2>
 <ul>
-  <li><strong>Per channel:</strong> the channel ID and when the extension was last used on it, needed to show
-  the right warnings and to receive Twitch's notification when the channel changes category.</li>
+  <li><strong>Per channel:</strong> the channel ID, when the extension was first and last used on it, and the ID of
+  its Twitch category-change subscription, needed to show the right warnings and to receive Twitch's
+  notification when the channel changes category.</li>
   <li><strong>Broadcaster corrections:</strong> if a broadcaster picks a different DoesTheDogDie entry for a game,
   that choice (game ID and entry ID) is saved in Twitch's Extension Configuration Service for that channel, with a
   copy in our server's cache.</li>

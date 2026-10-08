@@ -53,7 +53,8 @@ import { existsSync, readFileSync } from "node:fs";
  * Real DDD responses captured by scripts/capture-ddd-fixtures.ts. Not committed (DDD's terms
  * don't allow redistributing their data), so tests that need them skip when they're absent.
  */
-export const hasRealFixtures = existsSync(new URL("./fixtures/ddd/topics.json", import.meta.url));
+const REAL_FIXTURES = ["topics", "topiccategories", "topicsupercategories", "itemtypes", "search-the-last-of-us", "search-celeste", "item-14438", "item-17871"];
+export const hasRealFixtures = REAL_FIXTURES.every((f) => existsSync(new URL(`./fixtures/ddd/${f}.json`, import.meta.url)));
 export const fixture = (name: string): unknown =>
   JSON.parse(readFileSync(new URL(`./fixtures/ddd/${name}.json`, import.meta.url), "utf8"));
 

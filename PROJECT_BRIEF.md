@@ -1,7 +1,7 @@
 # Project Brief: Twitch Content-Warning Extension
 
 > **Status (2026-10-07): original planning brief, kept for history.** Section 2 is kept current.
-> Sections 3–9 describe the initial plan; the built extension differs in places (DDD API v3, Yes-only
+> Sections 1 and 3–13 describe the initial plan; the built extension differs in places (DDD API v3, Yes-only
 > list grouped by category, no topic hiding or vote counts, per-category corrections stored in Twitch's
 > configuration service, Render hosting). Current behaviour and setup: `README.md`, `docs/SETUP.md`,
 > `docs/CONSOLE.md`, `docs/ddd-terms-notes.md`.

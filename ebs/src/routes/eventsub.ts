@@ -41,7 +41,8 @@ export function eventsubRoutes(deps: { secret: string; live: LiveUpdates }) {
           if (n.success) {
             const e = n.data.event;
             // Acknowledge fast; Twitch expects a 2xx within a few seconds.
-            void deps.live.onCategoryChange(e.broadcaster_user_id, { id: e.category_id, name: e.category_name });
+            const sentAt = Date.parse(String(request.headers["twitch-eventsub-message-timestamp"]));
+            void deps.live.onCategoryChange(e.broadcaster_user_id, { id: e.category_id, name: e.category_name }, sentAt);
           }
           return reply.code(204).send();
         }

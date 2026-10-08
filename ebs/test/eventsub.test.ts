@@ -96,3 +96,18 @@ test("an existing subscription is found after a 409 by filtering on user only", 
   const helix = new HelixClient({ clientId: "c", apiBase: "https://api/helix", tokens, fetchFn: f.fn });
   assert.equal(await helix.subscribeChannelUpdate("42", "https://x/eventsub", "secret-123456"), "sub-9");
 });
+
+test("an older (re)delivered channel.update can't undo a newer one", async () => {
+  const applied: string[] = [];
+  const live = new LiveUpdates({
+    store: {} as never,
+    helix: { sendExtensionBroadcast: async () => {} } as never,
+    warnings: { setChannelGame: (_c: string, g: { name: string }) => void applied.push(g.name), forChannel: async () => ({ status: "error" }) } as never,
+    extensionSecret: new Uint8Array(32),
+    ownerId: "1000",
+    log: { info() {}, warn() {} },
+  });
+  await live.onCategoryChange("1", { id: "2", name: "B" }, 2_000);
+  await live.onCategoryChange("1", { id: "1", name: "A" }, 1_000); // redelivered older event
+  assert.deepEqual(applied, ["B"]);
+});

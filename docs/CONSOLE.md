@@ -90,7 +90,7 @@ The extension stores no viewer information. Powered by DoesTheDogDie.com.
 
 ## 7. Files (Hosted Test)
 ```fish
-EBS_URL=https://game-content-warnings.onrender.com node scripts/build-frontend.ts --zip     # -> dist/frontend-0.1.0.zip (~12 KB)
+EBS_URL=https://game-content-warnings.onrender.com node scripts/build-frontend.ts --zip     # -> dist/frontend-0.1.0.zip (~15 KB)
 ```
 Upload the zip, then **Move to Hosted Test**. Access tab: the owner account is allowed by default;
 add test accounts or streamers if others should see it.

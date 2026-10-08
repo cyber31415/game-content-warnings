@@ -1,6 +1,6 @@
 import type { PubSubMessage, TopicDictionary, WarningsResponse } from "../../shared/api.d.ts";
 import { applyTheme, brandMark, ebs, el } from "./api.ts";
-import { footer, renderGroups, renderStatus, unofficialBadge } from "./render.ts";
+import { footer, freshness, renderGroups, renderStatus, unofficialBadge } from "./render.ts";
 import { groupWarnings, loadTopics, type Group } from "./topics.ts";
 
 // How the panel stays current when the streamer switches category:
@@ -94,6 +94,15 @@ function render(): void {
   foot.replaceChildren(footer(data));
 }
 
+/** Keeps "Updated today" accurate across midnight without rebuilding the footer (keeps link focus). */
+function updateFreshness(): void {
+  const el2 = foot.querySelector(".freshness");
+  if (el2 && data !== "loading" && data.status === "ok") {
+    const text = freshness(data.fetchedAt);
+    if (el2.textContent !== text) el2.textContent = text;
+  }
+}
+
 function setExpandLabel(allOpen: boolean): void {
   expandAll.textContent = allOpen ? "Collapse all" : "Expand all";
   expandAll.setAttribute("aria-expanded", String(allOpen));
@@ -152,7 +161,10 @@ async function ensureTopics(): Promise<void> {
   if (!token || data === "loading" || data.status !== "ok") return;
   if (dict?.version === data.topicsVersion) return;
   try {
-    dict = await loadTopics(token, data.topicsVersion);
+    const loaded = await loadTopics(token, data.topicsVersion);
+    // The data may have moved on to another catalogue version while this loaded.
+    const now = data as WarningsResponse | "loading"; // may have changed during the await
+    if (now !== "loading" && now.status === "ok" && (loaded.version === now.topicsVersion || !dict)) dict = loaded;
     topicsFailed = false;
   } catch {
     topicsFailed = !dict; // an older dictionary still renders names; only fail without one
@@ -186,6 +198,7 @@ async function refresh(): Promise<void> {
   }
   // Re-render only when something visible changed, so polls don't disturb keyboard/screen-reader users.
   if (changed || dict !== dictBefore || topicsFailed !== topicsFailedBefore) render();
+  else updateFreshness();
   scheduleNext(failed || topicsFailed);
   if (refreshQueued) {
     refreshQueued = false;

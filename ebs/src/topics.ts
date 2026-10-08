@@ -55,6 +55,11 @@ export function buildDictionary(c: Catalog, fetchedAt: number): TopicDictionary 
 type Logger = { warn: (obj: object, msg: string) => void };
 
 /** Topic catalogue cached in SQLite (3 DDD requests per refresh, weekly). */
+/** Seconds a dictionary may still be used (and cached by browsers) under DDD's 30-day rule. */
+export function secondsUntilExpiry(dict: TopicDictionary, now = Date.now()): number {
+  return Math.max(0, Math.floor((Number(dict.version) + CATALOG_MAX_STALE - now) / 1000));
+}
+
 export class TopicCatalog {
   private readonly store: Store;
   private readonly ddd: DddClient;
@@ -91,8 +96,9 @@ export class TopicCatalog {
         if (cached && this.now() - cached.fetchedAt < CATALOG_MAX_STALE) {
           this.log.warn({ err: String(err) }, "serving stale DDD topic catalogue");
           const dict = buildDictionary(JSON.parse(cached.payloadJson) as Catalog, cached.fetchedAt);
-          // Reuse the stale copy for a while instead of retrying DDD on every request.
-          this.memo = { dict, fetchedAt: this.now() - CATALOG_TTL + STALE_RETRY };
+          // Reuse the stale copy for a while instead of retrying DDD on every request, but never past 30 days.
+          const keep = Math.min(STALE_RETRY, cached.fetchedAt + CATALOG_MAX_STALE - this.now());
+          this.memo = { dict, fetchedAt: this.now() - CATALOG_TTL + keep };
           return dict;
         }
         this.failedAt = this.now();

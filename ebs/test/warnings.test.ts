@@ -201,3 +201,28 @@ test("a category lookup that started before an EventSub update can't overwrite i
   assert.equal((await lookup).name, "Celeste");
   assert.equal((await svc.channelGame("12345")).name, "Celeste");
 });
+
+test("a newer Helix answer isn't discarded because another lookup finished in between", async () => {
+  const d = testDeps();
+  let now = 1_000_000_000_000;
+  const answers = [
+    { delay: 30, game: { id: "1001", name: "Old" } }, // slow lookup that started first
+    { delay: 0, game: { id: "2002", name: "New" } }, // fresh lookup started later
+  ];
+  let call = 0;
+  const helix = {
+    getChannel: async () => {
+      const a = answers[call++]!;
+      await new Promise((r) => setTimeout(r, a.delay));
+      now += 10;
+      return { broadcaster_id: "1", broadcaster_name: "x", game_id: a.game.id, game_name: a.game.name };
+    },
+  } as never;
+  const corrections = new Corrections({ store: d.store, helix, extensionSecret: new Uint8Array(32), ownerId: "1000", mode: "local" });
+  const svc = new WarningsService({ store: d.store, ddd: d.ddd, helix, topics: new TopicCatalog({ store: d.store, ddd: d.ddd }), corrections, now: () => now });
+  const slow = svc.channelGame("1");
+  now += 1;
+  const fresh = await svc.channelGame("1", undefined, { fresh: true });
+  await slow;
+  assert.equal(fresh.name, "New");
+});

@@ -4,13 +4,13 @@
 // Cost: up to 2 DDD searches per new category (free tier: 5,000 requests/month).
 //
 //   node --env-file=.env scripts/match-audit.ts [--top 50]
-import { writeFileSync, mkdirSync } from "node:fs";
+import { mkdirSync, readdirSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { loadConfig } from "../ebs/src/config.ts";
 import { Store } from "../ebs/src/cache/db.ts";
 import { DddClient } from "../ebs/src/ddd/client.ts";
 import { AppTokenManager, HelixClient } from "../ebs/src/twitch/helix.ts";
-import { WarningsService } from "../ebs/src/warnings.ts";
+import { TTL, WarningsService } from "../ebs/src/warnings.ts";
 import { TopicCatalog } from "../ebs/src/topics.ts";
 import { Corrections } from "../ebs/src/corrections.ts";
 import type { Candidate } from "../ebs/src/match/matcher.ts";
@@ -21,6 +21,13 @@ const tokens = new AppTokenManager({ clientId: config.twitch.clientId, clientSec
 const helix = new HelixClient({ clientId: config.twitch.clientId, apiBase: config.twitch.apiBase, tokens });
 const ddd = new DddClient({ apiKey: config.ddd.apiKey, apiBase: config.ddd.apiBase, maxQueueWaitMs: 60 * 60_000 });
 const store = new Store(resolve(import.meta.dirname, "../data/audit.sqlite"), { vfs: config.database.vfs });
+mkdirSync(resolve(import.meta.dirname, "../data"), { recursive: true });
+// DDD terms: cached DDD data (including old audit reports) must not be kept beyond 30 days.
+store.purgeItemsOlderThan(Date.now() - TTL.itemMaxStale);
+for (const f of readdirSync(resolve(import.meta.dirname, "../data")).filter((f) => /^match-audit-.*\.md$/.test(f))) {
+  const p = resolve(import.meta.dirname, "../data", f);
+  if (Date.now() - statSync(p).mtimeMs > TTL.itemMaxStale) unlinkSync(p);
+}
 const corrections = new Corrections({ store, helix, extensionSecret: config.twitch.extensionSecret, ownerId: config.twitch.ownerId, mode: "local" });
 const svc = new WarningsService({ store, ddd, helix, topics: new TopicCatalog({ store, ddd }), corrections });
 

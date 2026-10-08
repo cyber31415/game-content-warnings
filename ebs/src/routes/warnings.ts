@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { WarningsService } from "../warnings.ts";
 import type { LiveUpdates } from "../live.ts";
+import { secondsUntilExpiry } from "../topics.ts";
 
 const Query = z.object({ hint: z.string().max(200).optional() });
 
@@ -22,7 +23,7 @@ export function warningsRoutes(deps: { warnings: WarningsService; live: LiveUpda
     app.get("/api/topics", async (_request, reply) => {
       try {
         const dict = await deps.warnings.topics.get();
-        reply.header("Cache-Control", "private, max-age=86400");
+        reply.header("Cache-Control", `private, max-age=${Math.min(86400, secondsUntilExpiry(dict))}`);
         return dict;
       } catch {
         return reply.code(503).send({ error: "topic catalogue unavailable" });

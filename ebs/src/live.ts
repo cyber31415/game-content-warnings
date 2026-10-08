@@ -63,7 +63,7 @@ export class LiveUpdates {
         .then((id) => {
           this.store.touchChannel(channelId);
           this.store.setChannelSubscription(channelId, id);
-          this.log.info({ channelId, subscriptionId: id }, "subscribed to channel.update");
+          this.log.info({ subscriptionId: id }, "subscribed to channel.update");
         })
         .catch((err) => this.log.warn({ channelId, err: String(err) }, "EventSub subscribe failed"))
         .finally(() => this.pending.delete(channelId));
@@ -79,7 +79,12 @@ export class LiveUpdates {
   }
 
   /** EventSub said the category changed: refresh our view and push it to viewers. */
-  async onCategoryChange(channelId: string, category: Category): Promise<void> {
+  /** Timestamp (ms) of the newest channel.update applied per channel; Twitch may deliver out of order. */
+  private readonly lastEventAt = new Map<string, number>();
+
+  async onCategoryChange(channelId: string, category: Category, eventTime = Date.now()): Promise<void> {
+    if (eventTime < (this.lastEventAt.get(channelId) ?? 0)) return; // older than what we already applied
+    this.lastEventAt.set(channelId, eventTime);
     this.warnings.setChannelGame(channelId, category);
     await this.broadcastCurrent(channelId);
   }

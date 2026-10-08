@@ -66,7 +66,7 @@ information about viewers.</p>
   keep the extension fast. Cached DoesTheDogDie data is refreshed and never kept longer than 30 days.</li>
 </ul>
 <p>We do not use cookies, advertising, analytics or tracking, and we do not sell or share personal information.
-The panel does not store anything in your browser.</p>
+The panel uses no cookies or local storage; your browser may briefly keep responses in its normal HTTP cache.</p>
 
 <h2>Third parties</h2>
 <ul>

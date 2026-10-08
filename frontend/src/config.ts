@@ -24,6 +24,8 @@ let searchText = "";
 let searchResults: DddSearchResult[] | undefined;
 let busy = false;
 let loadRetries = 0;
+/** A retry is scheduled (drives the "Retrying automatically…" text). */
+let reloadPending = false;
 /** Element id to focus after the next render (keeps keyboard users in place). */
 let focusAfterRender: string | null = null;
 
@@ -61,6 +63,7 @@ function statusText(w: WarningsResponse): string {
 
 async function load(): Promise<void> {
   if (!token) return;
+  reloadPending = false;
   try {
     state = await ebs<BroadcasterConfigResponse>(token, "/api/broadcaster/config");
     if (message.startsWith("Still loading")) announce("");
@@ -80,6 +83,7 @@ async function load(): Promise<void> {
 
 function scheduleReload(): void {
   loadRetries++;
+  reloadPending = true;
   window.setTimeout(load, LOAD_RETRY_MS);
 }
 
@@ -111,7 +115,13 @@ async function setOverride(dddItemId: number | null): Promise<void> {
 }
 
 async function search(q: string): Promise<void> {
-  if (!token || q.trim().length < 2) return;
+  if (!token) return;
+  if (q.trim().length < 2) {
+    announce("Type at least 2 characters to search.");
+    focusAfterRender = "q";
+    render();
+    return;
+  }
   announce("Searching…");
   focusAfterRender = "q";
   render();
@@ -161,7 +171,7 @@ function render(): void {
   }
   if (state.current.status === "error") {
     // No category info to correct against right now; corrections would have nothing to apply to.
-    match.append(el("p", { text: loadRetries > 0 && loadRetries <= LOAD_MAX_RETRIES ? "Retrying automatically…" : "Reopen this page in a minute to try again." }));
+    match.append(el("p", { text: reloadPending ? "Retrying automatically…" : "Reopen this page in a minute to try again." }));
     parts.push(match);
     finish(parts);
     return;

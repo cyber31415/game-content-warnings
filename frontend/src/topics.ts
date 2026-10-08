@@ -9,7 +9,11 @@ export async function loadTopics(token: string, version: string): Promise<TopicD
   if (cached && cached.version === version) return cached;
   if (inflight?.version !== version) {
     const promise = ebs<TopicDictionary>(token, `/api/topics?v=${encodeURIComponent(version)}`)
-      .then((d) => (cached = d))
+      .then((d) => {
+        // Don't let a slower load of an older version replace a newer cached dictionary.
+        if (!cached || inflight?.version === version) cached = d;
+        return d;
+      })
       .finally(() => {
         if (inflight?.promise === promise) inflight = undefined;
       });

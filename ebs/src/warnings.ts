@@ -81,7 +81,8 @@ export class WarningsService {
   private readonly now: () => number;
   private readonly log: Logger;
   private readonly flights = new SingleFlight();
-  private readonly channelGames = new Map<string, { game: Category; at: number }>();
+  /** `source: "event"` entries came from EventSub; a Helix answer that started earlier must not replace them. */
+  private readonly channelGames = new Map<string, { game: Category; at: number; source: "helix" | "event" }>();
   private readonly responses = new Map<string, { body: WarningsResponse; at: number }>();
   private readonly touched = new Map<string, number>();
 
@@ -122,7 +123,7 @@ export class WarningsService {
 
   /** Called from EventSub when a channel's category changes: updates our view immediately. */
   setChannelGame(channelId: string, game: Category): void {
-    this.channelGames.set(channelId, { game, at: this.now() });
+    this.channelGames.set(channelId, { game, at: this.now(), source: "event" });
   }
 
   /** Records that a channel uses the extension; returns true when it was not seen recently. */
@@ -152,9 +153,10 @@ export class WarningsService {
       const ch = await this.helix.getChannel(channelId);
       const game = { id: ch?.game_id ?? "", name: ch?.game_name ?? "" };
       // An EventSub update that landed while we waited is newer than this answer: keep it.
+      // (Other Helix answers don't block this one; the latest Helix response is as fresh as any.)
       const latest = this.channelGames.get(channelId);
-      if (latest && latest.at > startedAt) return latest.game;
-      this.channelGames.set(channelId, { game, at: this.now() });
+      if (latest?.source === "event" && latest.at > startedAt) return latest.game;
+      this.channelGames.set(channelId, { game, at: this.now(), source: "helix" });
       return game;
     });
   }

@@ -102,10 +102,27 @@ test("duplicate DDD listings resolve to the one with more votes", async () => {
 
 test("channel override beats the automatic match", async () => {
   const { svc, store } = service();
-  store.setChannelOverride("12345", 202);
+  store.setChannelOverride("12345", 202, "1001");
   const r = await svc.forChannel("12345");
   assert.equal(r.status === "ok" && r.ddd.itemId, 202);
   assert.equal(r.status === "ok" && r.matchSource, "channel");
+});
+
+test("a correction only applies to the category it was made for", async () => {
+  const { svc, store, up, advance } = service();
+  store.setChannelOverride("12345", 202, "1001"); // made while playing The Last of Us Part I
+  assert.equal(((await svc.forChannel("12345")) as { ddd: { itemId: number } }).ddd.itemId, 202);
+  up.channelGame = { id: "491487", name: "Dead by Daylight" }; // streamer switches games
+  advance(TTL.channelGame + 1);
+  const r = await svc.forChannel("12345");
+  assert.equal(r.status === "ok" && r.ddd.itemId, 301, "old correction must not follow the channel to a new game");
+});
+
+test("legacy corrections saved without a category are ignored", async () => {
+  const { svc, store } = service();
+  store.setChannelOverride("12345", 202);
+  const r = await svc.forChannel("12345");
+  assert.equal(r.status === "ok" && r.ddd.itemId, 101);
 });
 
 test("manual global mapping is never overwritten by the auto matcher", async () => {

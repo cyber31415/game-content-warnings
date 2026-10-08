@@ -57,6 +57,14 @@ test("broadcaster can set and clear an override", async () => {
   assert.equal((await a.inject({ url: "/api/warnings", headers: await auth() })).json().ddd.itemId, 101);
 });
 
+test("a correction can't be saved while the channel has no category", async () => {
+  const { app: a, up } = await app();
+  up.channelGame = { id: "", name: "" };
+  const res = await a.inject({ method: "PUT", url: "/api/broadcaster/override", headers: await auth({ role: "broadcaster" }), payload: { dddItemId: 202 } });
+  assert.equal(res.statusCode, 409);
+  assert.match(res.json().error, /Stream Manager/);
+});
+
 test("broadcaster override rejects junk", async () => {
   const { app: a } = await app();
   const headers = await auth({ role: "broadcaster" });

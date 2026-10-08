@@ -27,7 +27,7 @@ export function broadcasterRoutes(deps: { store: Store; ddd: DddClient; warnings
       const current = await deps.warnings.forChannel(channelId);
       const game = await deps.warnings.channelGame(channelId).catch(() => undefined);
       return {
-        overrideDddItemId: deps.store.getChannel(channelId)?.overrideDddItemId ?? null,
+        overrideDddItemId: game?.id ? deps.store.overrideFor(channelId, game.id) : null,
         current,
         candidates: game?.id ? deps.warnings.candidatesFor(game.id) : [],
         liveUpdates: deps.live.enabled,
@@ -38,6 +38,11 @@ export function broadcasterRoutes(deps: { store: Store; ddd: DddClient; warnings
       const body = OverrideBody.safeParse(request.body);
       if (!body.success) return reply.code(400).send({ error: "dddItemId must be a positive integer or null" });
       const channelId = request.ext.channel_id;
+      // A correction belongs to the category being streamed; without one there's nothing to correct.
+      const game = await deps.warnings.channelGame(channelId).catch(() => undefined);
+      if (body.data.dddItemId !== null && !game?.id) {
+        return reply.code(409).send({ error: "Set a category for your channel in Stream Manager first" });
+      }
       if (body.data.dddItemId !== null) {
         // Validates the id exists (and warms the cache) before saving it.
         try {
@@ -46,7 +51,7 @@ export function broadcasterRoutes(deps: { store: Store; ddd: DddClient; warnings
           return reply.code(422).send({ error: "DDD item not found or DDD unavailable" });
         }
       }
-      deps.store.setChannelOverride(channelId, body.data.dddItemId);
+      deps.store.setChannelOverride(channelId, body.data.dddItemId, game?.id ?? null);
       deps.warnings.invalidateResponses();
       void deps.live.broadcastCurrent(channelId);
       return { ok: true, overrideDddItemId: body.data.dddItemId };

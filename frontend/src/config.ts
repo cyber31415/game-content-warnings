@@ -36,7 +36,7 @@ function statusText(w: WarningsResponse): string {
     case "low_confidence":
       return `“${w.category.name}” has several possible matches. Pick the right one below.`;
     case "no_category":
-      return "Your channel has no category set. Set one, then reopen this page.";
+      return "Your channel has no category set yet, so there's no game to match.";
     case "error":
       return "Couldn't reach DoesTheDogDie right now. Try again in a minute.";
   }
@@ -108,6 +108,16 @@ function render(): void {
 
   // --- Which game ---
   const match = el("section", {}, [el("h2", { text: "Game match" }), statusLine(state.current)]);
+  if (state.current.status === "no_category") {
+    // The search below corrects a match; it can't set the Twitch category, so don't offer it here.
+    match.append(
+      el("p", { text: "Set your category on Twitch: Stream Manager → Edit Stream Info → Category (you don't need to be live). Then reopen this page." }),
+    );
+    parts.push(match);
+    parts.push(el("div", { className: "credits" }, [disclaimer(), attribution()]));
+    root.replaceChildren(...parts.filter((p): p is Node => p !== null));
+    return;
+  }
   if (state.current.status === "ok") match.append(el("p", {}, [externalLink(state.current.ddd.url, "Check it on DoesTheDogDie")]));
   if (state.overrideDddItemId !== null) {
     const reset = el("button", { text: "Use automatic matching", attrs: { type: "button" } });

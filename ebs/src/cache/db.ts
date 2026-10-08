@@ -20,6 +20,8 @@ export type GameMapRow = {
 export type ChannelRow = {
   channelId: string;
   overrideDddItemId: number | null;
+  /** The Twitch category the override was made for; it only applies while the channel plays it. */
+  overrideTwitchGameId: string | null;
   eventsubSubscriptionId: string | null;
   registeredAt: number;
   lastSeenAt: number;
@@ -54,6 +56,8 @@ const MIGRATIONS = [
      payload_json TEXT NOT NULL,
      fetched_at INTEGER NOT NULL
    )`,
+  // Overrides made before this column existed have no category and are therefore ignored.
+  `ALTER TABLE channels ADD COLUMN override_twitch_game_id TEXT`,
 ];
 
 /** Thin typed wrapper over node:sqlite. All timestamps are epoch milliseconds. */
@@ -189,6 +193,7 @@ export class Store {
     return {
       channelId: String(r.channel_id),
       overrideDddItemId: r.override_ddd_item_id == null ? null : Number(r.override_ddd_item_id),
+      overrideTwitchGameId: r.override_twitch_game_id == null ? null : String(r.override_twitch_game_id),
       eventsubSubscriptionId: r.eventsub_subscription_id == null ? null : String(r.eventsub_subscription_id),
       registeredAt: Number(r.registered_at),
       lastSeenAt: Number(r.last_seen_at),
@@ -205,9 +210,18 @@ export class Store {
     return this.getChannel(channelId)!;
   }
 
-  setChannelOverride(channelId: string, dddItemId: number | null): void {
+  /** Saves a broadcaster's game-match correction for one Twitch category (null clears it). */
+  setChannelOverride(channelId: string, dddItemId: number | null, twitchGameId: string | null = null): void {
     this.touchChannel(channelId);
-    this.db.prepare("UPDATE channels SET override_ddd_item_id = ? WHERE channel_id = ?").run(dddItemId, channelId);
+    this.db
+      .prepare("UPDATE channels SET override_ddd_item_id = ?, override_twitch_game_id = ? WHERE channel_id = ?")
+      .run(dddItemId, dddItemId === null ? null : twitchGameId, channelId);
+  }
+
+  /** The correction for this channel, but only if it was made for the category it's playing now. */
+  overrideFor(channelId: string, twitchGameId: string): number | null {
+    const row = this.getChannel(channelId);
+    return row && row.overrideDddItemId !== null && row.overrideTwitchGameId === twitchGameId ? row.overrideDddItemId : null;
   }
 
   setChannelSubscription(channelId: string, subscriptionId: string | null): void {

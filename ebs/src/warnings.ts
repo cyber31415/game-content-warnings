@@ -101,7 +101,7 @@ export class WarningsService {
     try {
       const game = await this.channelGame(channelId, opts.hint);
       if (!game.id) return { status: "no_category" };
-      const override = this.store.getChannel(channelId)?.overrideDddItemId ?? null;
+      const override = this.store.overrideFor(channelId, game.id);
       return await this.forGame(game, override);
     } catch (err) {
       this.log.warn({ err: String(err) }, "warnings lookup failed");

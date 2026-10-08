@@ -65,3 +65,17 @@ test("the correction cap raises a distinct error", async () => {
   const { c } = make(helix);
   await assert.rejects(c.set("42", "999999", 5), CorrectionLimitError);
 });
+
+test("after a failed Twitch write, the next read reloads from Twitch instead of trusting the mirror", async () => {
+  const { seg, helix } = twitch({ v: 1, c: {} });
+  const failingOnce = {
+    getDeveloperSegment: (helix as { getDeveloperSegment: () => Promise<string | undefined> }).getDeveloperSegment,
+    setDeveloperSegment: async (_j: string, _id: string, content: string) => {
+      seg.content = content; // Twitch committed it...
+      throw new Error("timeout"); // ...but the response never arrived
+    },
+  } as never;
+  const { c } = make(failingOnce);
+  await assert.rejects(c.set("42", "1", 10));
+  assert.equal(await c.for("42", "1"), 10, "re-read from Twitch shows the committed value");
+});

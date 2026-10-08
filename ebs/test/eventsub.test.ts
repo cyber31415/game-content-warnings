@@ -112,6 +112,7 @@ function verifyHarness(helixGames: string[]) {
     } as never,
     warnings: {
       setChannelGame: (_c: string, g: { name: string }) => void (cached = g.name),
+      peekChannelGame: () => (cached ? { id: cached, name: cached } : undefined),
       forChannel: async () => ({ status: "no_match", category: { id: cached, name: cached } }),
     } as never,
     extensionSecret: new Uint8Array(32),
@@ -155,4 +156,12 @@ test("a failed subscription blocking a new one is replaced, never reported as ac
   const helix = new HelixClient({ clientId: "c", apiBase: "https://api/helix", tokens, fetchFn: f.fn });
   assert.equal(await helix.subscribeChannelUpdate("42", "https://x/eventsub", "secret-123456"), "sub-new");
   assert.deepEqual(deleted, ["sub-dead"]);
+});
+
+test("a delayed re-check from an older notification doesn't override a newer one", async () => {
+  const { live, sent } = verifyHarness(["C", "C", "D", "D"]);
+  await live.onCategoryChange("1", { id: "B", name: "B" });
+  await live.onCategoryChange("1", { id: "D", name: "D" }); // newer notification before B's checks finish
+  await settle(sent, 3);
+  assert.ok(!sent.includes("C"), `never broadcast the stale lookup: ${sent.join(",")}`);
 });

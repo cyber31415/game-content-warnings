@@ -249,3 +249,14 @@ test("a response built from a nearly 30-day-old stale item isn't cached past 30 
   setNow(getNow() + 11_000); // now past 30 days: the cached response must not be reused
   assert.equal((await svc.forChannel("12345")).status, "error");
 });
+
+test("pruneCaches drops expired responses and stale channel entries", async () => {
+  const { svc, advance } = service();
+  await svc.forChannel("12345");
+  advance(TTL.channelTouch + 1);
+  svc.pruneCaches();
+  const internals = svc as unknown as { responses: Map<string, unknown>; channelGames: Map<string, unknown>; touched: Map<string, unknown> };
+  assert.equal(internals.responses.size, 0);
+  assert.equal(internals.channelGames.size, 0);
+  assert.equal(internals.touched.size, 0);
+});

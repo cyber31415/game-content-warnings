@@ -196,6 +196,16 @@ test("category change notification -> warnings recomputed and broadcast over Pub
   assert.notEqual((call.init!.headers as Record<string, string>).Authorization, "Bearer apptoken");
 });
 
+test("a stored subscription id is re-confirmed with Twitch once per process", async () => {
+  const d = testDeps(EVENTSUB);
+  d.store.touchChannel("12345");
+  d.store.setChannelSubscription("12345", "sub-stale-from-before-restart");
+  const a = await buildServer(d);
+  await a.inject({ url: "/api/warnings", headers: await auth() });
+  for (let i = 0; i < 50 && !d.up.helixCalls.some((c) => c.startsWith("POST /eventsub")); i++) await new Promise((r) => setTimeout(r, 10));
+  assert.ok(d.up.helixCalls.some((c) => c === "POST /eventsub/subscriptions"));
+});
+
 test("first viewer request from a channel subscribes it to channel.update", async () => {
   const { app: a, up } = await app(EVENTSUB);
   await a.inject({ url: "/api/warnings", headers: await auth() });

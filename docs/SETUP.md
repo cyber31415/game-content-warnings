@@ -84,6 +84,9 @@ because they're stored in Twitch's configuration service (`CORRECTIONS_STORE=twi
 Any host with HTTPS on port 443 and a persistent disk for SQLite. The `Dockerfile` runs the EBS;
 mount a volume at `/data` and set the variables from `.env.example` with:
 - `NODE_ENV=production`, no `DATABASE_VFS`, no localhost in `ALLOWED_ORIGINS` (leave it empty)
+- leave `HOST`, `PORT` and `DATABASE_PATH` unset: the Dockerfile sets `0.0.0.0`, `8081` and
+  `/data/cache.sqlite` (`.env.example`'s local values would make the container unreachable and
+  unable to write its cache)
 - `EVENTSUB_CALLBACK_URL=https://<your-ebs-host>/eventsub`, `EVENTSUB_SECRET=<random 10-100 chars>`
 
 Add `https://<your-ebs-host>` to **Allowlist for URL Fetching Domains**.

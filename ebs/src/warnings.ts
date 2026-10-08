@@ -127,6 +127,19 @@ export class WarningsService {
     this.channelGames.set(channelId, { game, at: this.now(), source: "event" });
   }
 
+  /** The category currently cached for a channel (no lookup). */
+  peekChannelGame(channelId: string): Category | undefined {
+    return this.channelGames.get(channelId)?.game;
+  }
+
+  /** Drops expired in-memory entries (called periodically): keeps memory bounded and holds no DDD data past its expiry. */
+  pruneCaches(): void {
+    const now = this.now();
+    for (const [k, v] of this.responses) if (now >= v.expires) this.responses.delete(k);
+    for (const [k, v] of this.channelGames) if (now - v.at > Math.max(TTL.channelGame, TTL.eventTrust)) this.channelGames.delete(k);
+    for (const [k, at] of this.touched) if (now - at > TTL.channelTouch) this.touched.delete(k);
+  }
+
   /** Records that a channel uses the extension; returns true when it was not seen recently. */
   noteChannelSeen(channelId: string): boolean {
     const last = this.touched.get(channelId) ?? 0;
@@ -169,6 +182,7 @@ export class WarningsService {
     const key = `${game.id}:${channelOverride ?? ""}`;
     const hit = this.responses.get(key);
     if (hit && this.now() < hit.expires) return hit.body;
+    if (hit) this.responses.delete(key);
 
     return this.flights.run(`resp:${key}`, async () => {
       const body = await this.buildResponse(game, channelOverride);

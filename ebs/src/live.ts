@@ -28,6 +28,8 @@ export class LiveUpdates {
   /** Broadcasts run one at a time per channel, so a slow older lookup can't land after a newer one. */
   private readonly queues = new Map<string, Promise<void>>();
   private readonly pending = new Map<string, Promise<void>>();
+  /** Channels whose subscription was confirmed with Twitch since this process started. */
+  private readonly verified = new Set<string>();
 
   constructor(opts: {
     store: Store;
@@ -57,7 +59,9 @@ export class LiveUpdates {
   /** Ensures a channel.update subscription exists for a channel using the extension. */
   async ensureSubscribed(channelId: string): Promise<void> {
     if (!this.eventsub) return;
-    if (this.store.getChannel(channelId)?.eventsubSubscriptionId) return;
+    // A stored id may be stale (e.g. Twitch revoked it while we were down and the revocation
+    // was lost), so confirm once per process: subscribing again finds or replaces it (409 path).
+    if (this.verified.has(channelId) && this.store.getChannel(channelId)?.eventsubSubscriptionId) return;
     let p = this.pending.get(channelId);
     if (!p) {
       const { callbackUrl, secret } = this.eventsub;
@@ -66,6 +70,7 @@ export class LiveUpdates {
         .then((id) => {
           this.store.touchChannel(channelId);
           this.store.setChannelSubscription(channelId, id);
+          this.verified.add(channelId);
           this.log.info({ subscriptionId: id }, "subscribed to channel.update");
         })
         .catch((err) => this.log.warn({ channelId, err: String(err) }, "EventSub subscribe failed"))
@@ -105,6 +110,8 @@ export class LiveUpdates {
       const ch = await this.helix.getChannel(channelId);
       const actualId = ch?.game_id ?? "";
       if (actualId === applied.id) return;
+      // A newer notification already replaced this one; its own check takes over.
+      if (this.warnings.peekChannelGame(channelId)?.id !== applied.id) return;
       if (attempt < 2) {
         const again = setTimeout(() => void this.verifyCategory(channelId, applied, attempt + 1), this.verifyDelayMs * 3);
         again.unref?.();

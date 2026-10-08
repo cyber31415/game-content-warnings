@@ -75,7 +75,13 @@ export class Corrections {
     if (Object.keys(next).length > MAX_CORRECTIONS) throw new CorrectionLimitError("too many corrections for this channel");
     if (this.mode === "twitch") {
       const jwt = await signEbsJwt(this.secret, { ownerId: this.ownerId, channelId });
-      await this.helix.setDeveloperSegment(jwt, channelId, JSON.stringify({ v: 1, c: next }));
+      try {
+        await this.helix.setDeveloperSegment(jwt, channelId, JSON.stringify({ v: 1, c: next }));
+      } catch (err) {
+        // Twitch may have stored it anyway (e.g. timeout after commit): re-read before trusting the mirror.
+        this.loaded.delete(channelId);
+        throw err;
+      }
     }
     this.store.touchChannel(channelId);
     this.store.replaceCorrections(channelId, next);

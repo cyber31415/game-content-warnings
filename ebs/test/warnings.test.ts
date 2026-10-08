@@ -281,3 +281,25 @@ test("an automatic match whose DDD item disappeared is dropped and re-matched la
   assert.equal(store.getGameMap("1001"), undefined, "stale auto decision removed");
   assert.ok(up);
 });
+
+test("a merged/deleted duplicate listing doesn't break the match; the surviving one is used", async () => {
+  const { svc, up, advance } = service();
+  up.channelGame = { id: "555", name: "Duplicate with a merged listing" }; // DDD: 301 exists, 999 is gone
+  const r = await svc.forChannel("12345");
+  assert.equal(r.status === "ok" && r.ddd.itemId, 301);
+  const searches = up.dddCalls.filter((c) => c.startsWith("/api/v3/items?")).length;
+  advance(TTL.response + 1);
+  await svc.forChannel("12345");
+  assert.equal(up.dddCalls.filter((c) => c.startsWith("/api/v3/items?")).length, searches, "no re-search");
+});
+
+test("a failed match isn't re-searched on every request", async () => {
+  const { svc, up } = service();
+  up.channelGame = { id: "777", name: "Celeste" };
+  up.dddDown = true;
+  assert.equal((await svc.forChannel("12345")).status, "error");
+  const calls = up.dddCalls.length;
+  await svc.forChannel("12345");
+  await svc.forChannel("12345");
+  assert.equal(up.dddCalls.length, calls, "backoff: no new DDD calls");
+});

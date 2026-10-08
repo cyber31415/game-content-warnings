@@ -16,6 +16,7 @@ export const TTL = {
   eventTrust: 30_000, // an EventSub category beats a disagreeing Helix answer for this long
   itemNotFoundBackoff: 60 * MINUTE, // DDD said the item doesn't exist: don't ask again for a while
   itemFailureBackoff: 2 * MINUTE, // other DDD failures: retry no more often than this
+  matchFailureBackoff: MINUTE, // a failed match (DDD down) isn't retried on every request
   response: 60_000, // assembled response per (game, override)
   matched: 30 * DAY,
   unmatched: 7 * DAY, // no_match / low_confidence: retry periodically
@@ -90,6 +91,7 @@ export class WarningsService {
   private readonly touched = new Map<string, number>();
   /** Recent failed item fetches, so a missing/unavailable item isn't re-requested on every view (DDD quota). */
   private readonly itemFailures = new Map<number, { at: number; notFound: boolean }>();
+  private readonly matchFailures = new Map<string, number>();
 
   constructor(opts: {
     store: Store;
@@ -143,6 +145,7 @@ export class WarningsService {
     for (const [k, v] of this.channelGames) if (now - v.at > Math.max(TTL.channelGame, TTL.eventTrust)) this.channelGames.delete(k);
     for (const [k, at] of this.touched) if (now - at > TTL.channelTouch) this.touched.delete(k);
     for (const [k, f] of this.itemFailures) if (now - f.at > TTL.itemNotFoundBackoff) this.itemFailures.delete(k);
+    for (const [k, at] of this.matchFailures) if (now - at > TTL.matchFailureBackoff) this.matchFailures.delete(k);
   }
 
   /** Records that a channel uses the extension; returns true when it was not seen recently. */
@@ -249,9 +252,15 @@ export class WarningsService {
       const ttl = row.status === "matched" ? TTL.matched : TTL.unmatched;
       if (row.source === "manual" || this.now() - row.updatedAt < ttl) return row;
     }
+    const failedAt = this.matchFailures.get(game.id);
+    if (failedAt !== undefined && this.now() - failedAt < TTL.matchFailureBackoff) {
+      if (row) return row;
+      throw new Error(`matching "${game.name}" recently failed`);
+    }
     return this.flights.run(`match:${game.id}`, async () => {
       try {
         const result = await this.runMatcher(game.name);
+        this.matchFailures.delete(game.id);
         this.store.putAutoMatch({
           twitchGameId: game.id,
           twitchName: game.name,
@@ -263,30 +272,46 @@ export class WarningsService {
         });
         return this.store.getGameMap(game.id)!;
       } catch (err) {
+        this.matchFailures.set(game.id, this.now());
         if (row) return row; // stale decision beats no decision while DDD is unavailable
         throw err;
       }
     });
   }
 
+  /** DDD said this item doesn't exist (recently): leave it out of matching. */
+  private knownMissing(itemId: number): boolean {
+    const f = this.itemFailures.get(itemId);
+    return !!f && f.notFound && this.now() - f.at < TTL.itemNotFoundBackoff;
+  }
+
   private async runMatcher(twitchName: string) {
     let seen: DddItemSummary[] = [];
     let result = rankCandidates(twitchName, []);
     for (const q of searchQueries(twitchName)) {
-      seen = dedupe([...seen, ...(await this.ddd.search(q))]);
+      // Entries DDD recently reported as deleted/merged are not candidates.
+      seen = dedupe([...seen, ...(await this.ddd.search(q))]).filter((i) => !this.knownMissing(i.id));
       result = rankCandidates(twitchName, seen);
       if (result.status === "matched" || result.duplicateIds) break;
     }
     if (result.duplicateIds) {
       // Duplicate listings of one game: use the one more people voted on (fetches are cached).
-      const scored = await Promise.all(
+      // Each is fetched independently, so one deleted/merged listing doesn't sink the others.
+      const settled = await Promise.allSettled(
         result.duplicateIds.map(async (id) => {
           const { item } = await this.item(id);
           return { id, votes: item.topicItemStats.reduce((n, s) => n + s.yesSum + s.noSum, 0) };
         }),
       );
-      const pick = scored.reduce((a, b) => (b.votes > a.votes ? b : a));
-      result = { ...result, status: "matched", dddItemId: pick.id, confidence: DUPLICATE_CONFIDENCE };
+      const loaded = settled.flatMap((s) => (s.status === "fulfilled" ? [s.value] : []));
+      if (loaded.length > 0) {
+        const pick = loaded.reduce((a, b) => (b.votes > a.votes ? b : a));
+        result = { ...result, status: "matched", dddItemId: pick.id, confidence: DUPLICATE_CONFIDENCE };
+      } else if (result.duplicateIds.every((id) => this.knownMissing(id))) {
+        result = { ...result, status: "no_match", dddItemId: null };
+      } else {
+        throw new Error("couldn't load duplicate DDD listings"); // transient: retried after the backoff
+      }
     }
     return result;
   }

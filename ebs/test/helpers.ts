@@ -95,6 +95,10 @@ export const DDD_SEARCH: Record<string, object[]> = {
     { id: 103, name: "The Last of Us", releaseYear: 2023, itemTypeName: "TV Show" },
   ],
   celeste: [{ id: 202, name: "Celeste", releaseYear: 2018, itemTypeName: "Video Game" }],
+  "duplicate with a merged listing": [
+    { id: 301, name: "Duplicate With A Merged Listing", releaseYear: null, itemTypeName: "Video Game" },
+    { id: 999, name: "Duplicate with a merged listing", releaseYear: 2016, itemTypeName: "Video Game" },
+  ],
   "dead by daylight": [
     { id: 301, name: "Dead By Daylight", releaseYear: null, itemTypeName: "Video Game" },
     { id: 302, name: "Dead by Daylight", releaseYear: 2016, itemTypeName: "Video Game" },

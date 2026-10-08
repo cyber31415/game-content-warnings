@@ -113,6 +113,12 @@ test("rate limiting keys on the trusted client-IP header when configured", async
   assert.equal(await h("198.51.100.7", "1.1.1.1"), first);
 });
 
+test("a correction to a DDD entry that no longer exists is refused", async () => {
+  const { app: a } = await app();
+  const res = await a.inject({ method: "PUT", url: "/api/broadcaster/override", headers: await auth({ role: "broadcaster" }), payload: { dddItemId: 424242, twitchGameId: "1001" } });
+  assert.equal(res.statusCode, 422);
+});
+
 test("broadcaster override rejects junk", async () => {
   const { app: a } = await app();
   const headers = await auth({ role: "broadcaster" });

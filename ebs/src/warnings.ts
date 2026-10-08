@@ -327,7 +327,8 @@ export class WarningsService {
         : undefined;
     const failure = this.itemFailures.get(itemId);
     if (failure && this.now() - failure.at < (failure.notFound ? TTL.itemNotFoundBackoff : TTL.itemFailureBackoff)) {
-      const stale = serveStale();
+      // A deleted item is gone, not "temporarily unavailable": never serve a stale copy of it.
+      const stale = failure.notFound ? undefined : serveStale();
       if (stale) return stale;
       throw new DddError(`DDD item ${itemId} recently ${failure.notFound ? "not found" : "unavailable"}`, {
         code: failure.notFound ? "not_found" : "recent_failure",
@@ -343,7 +344,12 @@ export class WarningsService {
         this.itemFailures.delete(itemId);
         return { item, fetchedAt: now };
       } catch (err) {
-        this.itemFailures.set(itemId, { at: this.now(), notFound: err instanceof DddError && err.status === 404 });
+        const notFound = err instanceof DddError && err.status === 404;
+        this.itemFailures.set(itemId, { at: this.now(), notFound });
+        if (notFound) {
+          this.store.deleteItem(itemId); // DDD deleted/merged it: drop our copy too
+          throw err;
+        }
         // Re-measure after the failed fetch (it can take tens of seconds); responses built from this
         // copy are cached only until it turns 30 days old (see forGame).
         if (cached && this.now() - cached.fetchedAt < TTL.itemMaxStale) {

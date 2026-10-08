@@ -3,8 +3,10 @@ import assert from "node:assert/strict";
 import { TTL, WarningsService, isWarningShown } from "../src/warnings.ts";
 import { TopicCatalog } from "../src/topics.ts";
 import { Corrections } from "../src/corrections.ts";
-import { TEST_SECRET_B64 } from "./helpers.ts";
+import { TEST_SECRET_B64, DDD_ITEMS } from "./helpers.ts";
 import { testDeps } from "./helpers.ts";
+
+const ORIGINAL_101 = (DDD_ITEMS as Record<number, object>)[101]!;
 
 function service() {
   const d = testDeps();
@@ -302,4 +304,21 @@ test("a failed match isn't re-searched on every request", async () => {
   await svc.forChannel("12345");
   await svc.forChannel("12345");
   assert.equal(up.dddCalls.length, calls, "backoff: no new DDD calls");
+});
+
+test("an item DDD deleted after we cached it is dropped, not served stale", async () => {
+  const { svc, store, up, advance } = service();
+  await svc.forChannel("12345"); // caches item 101 via the auto match
+  assert.ok(store.getItem(101));
+  delete (DDD_ITEMS as Record<number, object>)[101]; // DDD deletes/merges it
+  try {
+    advance(TTL.item + 1); // our copy is due for a refresh
+    svc.invalidateResponses();
+    const r = await svc.forChannel("12345");
+    assert.notEqual(r.status === "ok" && r.ddd.itemId, 101, "deleted entry must not be served");
+    assert.equal(store.getItem(101), undefined, "cached copy removed");
+    assert.ok(up);
+  } finally {
+    (DDD_ITEMS as Record<number, object>)[101] = ORIGINAL_101;
+  }
 });

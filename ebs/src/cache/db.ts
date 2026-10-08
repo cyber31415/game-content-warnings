@@ -186,6 +186,10 @@ export class Store {
       .run(dddItemId, payloadJson, now);
   }
 
+  deleteItem(dddItemId: number): void {
+    this.db.prepare("DELETE FROM ddd_item_cache WHERE ddd_item_id = ?").run(dddItemId);
+  }
+
   /** DDD terms: cached data must not be older than 30 days. */
   purgeItemsOlderThan(cutoff: number): number {
     this.db.prepare("DELETE FROM ddd_meta WHERE fetched_at < ?").run(cutoff);

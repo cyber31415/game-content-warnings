@@ -56,7 +56,8 @@ Every field, value and upload is listed in **`docs/CONSOLE.md`**. The steps belo
    under Extension Client Configuration) and the **Client ID** into `.env`. Set `TWITCH_EXT_OWNER_ID`
    to your numeric user ID.
 4. Check matching quality on real data: `node --env-file=.env scripts/match-audit.ts --top 50`
-   (~100 DDD requests) → `data/match-audit-<date>.md` (kept out of git: it contains DDD data).
+   (~100 DDD requests) → `data/match-audit-<date>.md` (kept out of git: it contains DDD data; each run
+   replaces the previous report — delete `data/audit.sqlite` and the report within 30 days if you stop).
    Review every `matched` row.
 
 ## 4. Local Test on your own channel

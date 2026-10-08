@@ -37,7 +37,10 @@ export class LiveUpdates {
     ownerId: string;
     eventsub?: { callbackUrl: string; secret: string };
     log: Logger;
+    /** How long after a notification to confirm the category with Helix (tests use 0). */
+    verifyDelayMs?: number;
   }) {
+    this.verifyDelayMs = opts.verifyDelayMs ?? 5_000;
     this.store = opts.store;
     this.helix = opts.helix;
     this.warnings = opts.warnings;
@@ -79,14 +82,40 @@ export class LiveUpdates {
   }
 
   /** EventSub said the category changed: refresh our view and push it to viewers. */
-  /** Timestamp (ms) of the newest channel.update applied per channel; Twitch may deliver out of order. */
-  private readonly lastEventAt = new Map<string, number>();
+  private readonly verifyDelayMs: number;
 
-  async onCategoryChange(channelId: string, category: Category, eventTime = Date.now()): Promise<void> {
-    if (eventTime < (this.lastEventAt.get(channelId) ?? 0)) return; // older than what we already applied
-    this.lastEventAt.set(channelId, eventTime);
+  /**
+   * EventSub said the category changed: apply it right away (fast for viewers), then confirm with
+   * Helix a few seconds later. Notifications can be retried or arrive out of order, and the payload
+   * carries no event time, so Helix is the tiebreaker: if it disagrees, correct and re-broadcast.
+   */
+  async onCategoryChange(channelId: string, category: Category): Promise<void> {
+    const verify = setTimeout(() => void this.verifyCategory(channelId, category), this.verifyDelayMs);
+    verify.unref?.();
     this.warnings.setChannelGame(channelId, category);
     await this.broadcastCurrent(channelId);
+  }
+
+  /**
+   * Reads Helix directly (without touching the cache). Helix can briefly lag behind EventSub, so a
+   * single disagreement is re-checked later; only a repeated one replaces the notified category.
+   */
+  private async verifyCategory(channelId: string, applied: Category, attempt = 1): Promise<void> {
+    try {
+      const ch = await this.helix.getChannel(channelId);
+      const actualId = ch?.game_id ?? "";
+      if (actualId === applied.id) return;
+      if (attempt < 2) {
+        const again = setTimeout(() => void this.verifyCategory(channelId, applied, attempt + 1), this.verifyDelayMs * 3);
+        again.unref?.();
+        return;
+      }
+      this.log.warn({ appliedGameId: applied.id, actualGameId: actualId }, "EventSub category superseded; re-broadcasting");
+      this.warnings.setChannelGame(channelId, { id: actualId, name: ch?.game_name ?? "" });
+      await this.broadcastCurrent(channelId);
+    } catch (err) {
+      this.log.warn({ err: String(err) }, "could not confirm category after EventSub");
+    }
   }
 
   /** Recomputes the channel's warnings and broadcasts them (e.g. after an override change). */

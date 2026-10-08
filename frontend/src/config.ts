@@ -23,6 +23,8 @@ let message = "";
 let searchText = "";
 let searchResults: DddSearchResult[] | undefined;
 let busy = false;
+/** Bumped by every search and save; only the latest search may update the results. */
+let searchSeq = 0;
 let loadRetries = 0;
 /** A retry is scheduled (drives the "Retrying automatically…" text). */
 let reloadPending = false;
@@ -97,6 +99,7 @@ async function setOverride(dddItemId: number | null): Promise<void> {
   const twitchGameId = currentCategoryId();
   if (!token || busy || !twitchGameId) return;
   busy = true;
+  searchSeq++; // results from an in-flight search no longer apply after a save
   announce("Saving…");
   render();
   try {
@@ -122,13 +125,17 @@ async function search(q: string): Promise<void> {
     render();
     return;
   }
+  const seq = ++searchSeq;
   announce("Searching…");
   focusAfterRender = "q";
   render();
   try {
-    searchResults = await ebs<DddSearchResult[]>(token, `/api/broadcaster/search?q=${encodeURIComponent(q.trim())}`);
-    announce(searchResults.length ? `${searchResults.length} results.` : "No results.");
+    const results = await ebs<DddSearchResult[]>(token, `/api/broadcaster/search?q=${encodeURIComponent(q.trim())}`);
+    if (seq !== searchSeq) return; // a newer search (or a save) superseded this one
+    searchResults = results;
+    announce(results.length ? `${results.length} results.` : "No results.");
   } catch (err) {
+    if (seq !== searchSeq) return;
     announce(err instanceof HttpError ? err.message : "Search failed.");
   }
   focusAfterRender = "q";

@@ -97,17 +97,45 @@ test("an existing subscription is found after a 409 by filtering on user only", 
   assert.equal(await helix.subscribeChannelUpdate("42", "https://x/eventsub", "secret-123456"), "sub-9");
 });
 
-test("an older (re)delivered channel.update can't undo a newer one", async () => {
-  const applied: string[] = [];
+function verifyHarness(helixGames: string[]) {
+  const sent: string[] = [];
+  let cached = "";
+  let helixCall = 0;
   const live = new LiveUpdates({
     store: {} as never,
-    helix: { sendExtensionBroadcast: async () => {} } as never,
-    warnings: { setChannelGame: (_c: string, g: { name: string }) => void applied.push(g.name), forChannel: async () => ({ status: "error" }) } as never,
+    helix: {
+      sendExtensionBroadcast: async (_j: string, _c: string, m: string) => void sent.push(JSON.parse(m).data.category.name),
+      getChannel: async () => {
+        const name = helixGames[Math.min(helixCall++, helixGames.length - 1)]!;
+        return { broadcaster_id: "1", broadcaster_name: "x", game_id: name, game_name: name };
+      },
+    } as never,
+    warnings: {
+      setChannelGame: (_c: string, g: { name: string }) => void (cached = g.name),
+      forChannel: async () => ({ status: "no_match", category: { id: cached, name: cached } }),
+    } as never,
     extensionSecret: new Uint8Array(32),
     ownerId: "1000",
     log: { info() {}, warn() {} },
+    verifyDelayMs: 0,
   });
-  await live.onCategoryChange("1", { id: "2", name: "B" }, 2_000);
-  await live.onCategoryChange("1", { id: "1", name: "A" }, 1_000); // redelivered older event
-  assert.deepEqual(applied, ["B"]);
+  return { live, sent };
+}
+const settle = async (sent: string[], n: number) => {
+  for (let i = 0; i < 300 && sent.length < n; i++) await new Promise((r) => setTimeout(r, 10)); // broadcasts are spaced 1.5 s apart
+  await new Promise((r) => setTimeout(r, 50));
+};
+
+test("a retried old channel.update is corrected once Helix disagrees twice", async () => {
+  const { live, sent } = verifyHarness(["B", "B"]);
+  await live.onCategoryChange("1", { id: "A", name: "A" }); // stale retry; the channel really plays B
+  await settle(sent, 2);
+  assert.deepEqual(sent, ["A", "B"]);
+});
+
+test("Helix briefly lagging behind EventSub doesn't revert a new category", async () => {
+  const { live, sent } = verifyHarness(["Old", "New"]); // first check still sees the old game
+  await live.onCategoryChange("1", { id: "New", name: "New" });
+  await settle(sent, 2);
+  assert.deepEqual(sent, ["New"]);
 });

@@ -14,7 +14,9 @@ export function warningsRoutes(deps: { warnings: WarningsService; live: LiveUpda
       const channelId = request.ext.channel_id; // only ever from the verified token
       if (deps.warnings.noteChannelSeen(channelId)) void deps.live.ensureSubscribed(channelId);
       const body = await deps.warnings.forChannel(channelId, { hint: q.data.hint });
-      reply.header("Cache-Control", "private, max-age=30");
+      // The EBS caches upstream lookups itself; browsers must always ask again, or a re-check right
+      // after a category change (hint retry, PubSub "refresh", error retry) would replay a stale answer.
+      reply.header("Cache-Control", "no-store");
       return body;
     });
 

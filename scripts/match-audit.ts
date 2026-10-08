@@ -1,10 +1,12 @@
 // Milestone M3: how well do Twitch's top categories match DoesTheDogDie entries?
 // Runs the real matcher over the current top-N Twitch categories and writes a report.
 // Decisions are cached in data/audit.sqlite, so re-runs only query new categories.
+// DDD terms: if you stop running the audit, delete data/audit.sqlite and data/match-audit-*.md
+// within 30 days (each run purges data older than 30 days and replaces the previous report).
 // Cost: up to 2 DDD searches per new category (free tier: 5,000 requests/month).
 //
 //   node --env-file=.env scripts/match-audit.ts [--top 50]
-import { mkdirSync, readdirSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, unlinkSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { loadConfig } from "../ebs/src/config.ts";
 import { Store } from "../ebs/src/cache/db.ts";
@@ -24,9 +26,9 @@ const store = new Store(resolve(import.meta.dirname, "../data/audit.sqlite"), { 
 mkdirSync(resolve(import.meta.dirname, "../data"), { recursive: true });
 // DDD terms: cached DDD data (including old audit reports) must not be kept beyond 30 days.
 store.purgeItemsOlderThan(Date.now() - TTL.itemMaxStale);
+// Each report is a snapshot of cached DDD data; keep only the newest one (written below).
 for (const f of readdirSync(resolve(import.meta.dirname, "../data")).filter((f) => /^match-audit-.*\.md$/.test(f))) {
-  const p = resolve(import.meta.dirname, "../data", f);
-  if (Date.now() - statSync(p).mtimeMs > TTL.itemMaxStale) unlinkSync(p);
+  unlinkSync(resolve(import.meta.dirname, "../data", f));
 }
 const corrections = new Corrections({ store, helix, extensionSecret: config.twitch.extensionSecret, ownerId: config.twitch.ownerId, mode: "local" });
 const svc = new WarningsService({ store, ddd, helix, topics: new TopicCatalog({ store, ddd }), corrections });

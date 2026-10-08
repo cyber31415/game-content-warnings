@@ -37,6 +37,12 @@ test("GET /api/warnings uses the channel from the token, never the query", async
   assert.ok(!up.helixCalls.some((c) => c.includes("999")));
 });
 
+test("warnings responses are never cached by browsers (re-checks must reach the EBS)", async () => {
+  const { app: a } = await app();
+  const res = await a.inject({ url: "/api/warnings", headers: await auth() });
+  assert.equal(res.headers["cache-control"], "no-store");
+});
+
 test("broadcaster endpoints refuse viewers", async () => {
   const { app: a } = await app();
   const res = await a.inject({ url: "/api/broadcaster/config", headers: await auth({ role: "viewer" }) });

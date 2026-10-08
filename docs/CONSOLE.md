@@ -9,7 +9,7 @@ Backend: `https://game-content-warnings.onrender.com` (Render free tier).
 ## 1. Create Extension
 | Field | Value |
 |---|---|
-| Name (unique, ≤40*, no "Twitch"/"extension") | **Game Content Warnings (Unofficial)** *(34 chars. Keep "DoesTheDogDie" out of the name: it's their trademark and their API terms §19.4 forbid implying endorsement. To rename, change `EXT_NAME` and rerun `scripts/make-listing-assets.py`)* |
+| Name (unique, ≤40*, no "Twitch"/"extension") | **Game Content Warnings (Unofficial)** *(34 chars. Keep "DoesTheDogDie" out of the name: it's their trademark, and their API terms (§5) only allow their marks under their guidelines, with attribution per §6. To rename, change `EXT_NAME` and rerun `scripts/make-listing-assets.py`)* |
 | Type | **Panel** + **Mobile** |
 | Version | `0.1.0` |
 

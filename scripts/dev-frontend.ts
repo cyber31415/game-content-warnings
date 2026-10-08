@@ -19,8 +19,8 @@ import { SignJWT } from "jose";
 const ROOT = resolve(import.meta.dirname, "..");
 const DIST = join(ROOT, "dist/frontend");
 const CERTS = join(ROOT, ".venv/certs");
-const PORT = Number(process.env.DEV_PORT ?? 8080);
-const EBS_PORT = Number(process.env.PORT ?? 8081);
+const PORT = Number(process.env.DEV_PORT || 8080);
+const EBS_PORT = Number(process.env.PORT || 8081);
 
 if (!existsSync(join(CERTS, "localhost.crt"))) {
   mkdirSync(CERTS, { recursive: true });

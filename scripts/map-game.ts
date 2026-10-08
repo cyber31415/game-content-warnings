@@ -8,7 +8,7 @@
 // Stop the EBS first if the database is on the CIFS share (dot-file locking is single-process).
 import { Store } from "../ebs/src/cache/db.ts";
 
-const store = new Store(process.env.DATABASE_PATH ?? "./data/cache.sqlite", { vfs: process.env.DATABASE_VFS || undefined });
+const store = new Store(process.env.DATABASE_PATH || "./data/cache.sqlite", { vfs: process.env.DATABASE_VFS || undefined });
 const [cmd, gameId, itemId, name] = process.argv.slice(2);
 
 if (cmd === "list") {
@@ -17,7 +17,10 @@ if (cmd === "list") {
   }
 } else if (cmd === "set" && gameId && /^\d+$/.test(itemId ?? "")) {
   store.putManualMatch(gameId, name ?? store.getGameMap(gameId)?.twitchName ?? "", Number(itemId));
-  console.log(`Pinned Twitch category ${gameId} -> DDD item ${itemId}. Restart the EBS to drop its in-memory cache.`);
+  console.log(
+    `Pinned Twitch category ${gameId} -> DDD item ${itemId} (temporary). A running EBS picks it up within about a minute;\n` +
+      "a restart removes it. Add permanent pins to ebs/src/match/manual-mappings.ts.",
+  );
 } else if (cmd === "clear" && gameId) {
   store.putManualMatch(gameId, "", null);
   console.log(`Removed manual mapping for ${gameId}.`);

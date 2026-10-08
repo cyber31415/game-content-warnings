@@ -1,6 +1,6 @@
 import type { Category, ExtraTopics, MatchSource, TopicDictionary, Warning, WarningsResponse } from "../../shared/api.d.ts";
 import type { GameMapRow, Store } from "./cache/db.ts";
-import type { DddClient } from "./ddd/client.ts";
+import { DddError, type DddClient } from "./ddd/client.ts";
 import { DddItemDetailSchema, type DddItemDetail, type DddItemSummary } from "./ddd/schema.ts";
 import { rankCandidates, searchQueries, type Candidate } from "./match/matcher.ts";
 import type { HelixClient } from "./twitch/helix.ts";
@@ -14,6 +14,8 @@ export const TTL = {
   channelGame: 90_000, // Helix channel -> category lookup
   channelHintRefresh: 10_000, // min age before a frontend hint can force a re-lookup
   eventTrust: 30_000, // an EventSub category beats a disagreeing Helix answer for this long
+  itemNotFoundBackoff: 60 * MINUTE, // DDD said the item doesn't exist: don't ask again for a while
+  itemFailureBackoff: 2 * MINUTE, // other DDD failures: retry no more often than this
   response: 60_000, // assembled response per (game, override)
   matched: 30 * DAY,
   unmatched: 7 * DAY, // no_match / low_confidence: retry periodically
@@ -86,6 +88,8 @@ export class WarningsService {
   private readonly channelGames = new Map<string, { game: Category; at: number; source: "helix" | "event" }>();
   private readonly responses = new Map<string, { body: WarningsResponse; expires: number }>();
   private readonly touched = new Map<string, number>();
+  /** Recent failed item fetches, so a missing/unavailable item isn't re-requested on every view (DDD quota). */
+  private readonly itemFailures = new Map<number, { at: number; notFound: boolean }>();
 
   constructor(opts: {
     store: Store;
@@ -138,6 +142,7 @@ export class WarningsService {
     for (const [k, v] of this.responses) if (now >= v.expires) this.responses.delete(k);
     for (const [k, v] of this.channelGames) if (now - v.at > Math.max(TTL.channelGame, TTL.eventTrust)) this.channelGames.delete(k);
     for (const [k, at] of this.touched) if (now - at > TTL.channelTouch) this.touched.delete(k);
+    for (const [k, f] of this.itemFailures) if (now - f.at > TTL.itemNotFoundBackoff) this.itemFailures.delete(k);
   }
 
   /** Records that a channel uses the extension; returns true when it was not seen recently. */
@@ -208,7 +213,21 @@ export class WarningsService {
       }
       [itemId, source, confidence] = [m.dddItemId, m.source, m.confidence];
     }
-    const [{ item, fetchedAt }, dict] = await Promise.all([this.item(itemId), this.topics.get()]);
+    let fetched: { item: DddItemDetail; fetchedAt: number };
+    try {
+      fetched = await this.item(itemId);
+    } catch (err) {
+      if (!(err instanceof DddError && err.status === 404)) throw err;
+      // DDD deleted or merged this entry.
+      if (source === "channel") {
+        this.log.warn({ itemId }, "corrected DDD item no longer exists; using automatic match");
+        return this.buildResponse(game, null);
+      }
+      if (source === "auto") this.store.deleteAutoMatch(game.id); // re-match on a later request
+      return { status: "no_match", category: game };
+    }
+    const { item, fetchedAt } = fetched;
+    const dict = await this.topics.get();
     const { warnings, extraTopics } = toWarnings(item, dict, (id, name) => this.topics.noteUnknown(id, name));
     return {
       status: "ok",
@@ -277,13 +296,29 @@ export class WarningsService {
     const age = cached ? this.now() - cached.fetchedAt : Infinity;
     if (cached && age < TTL.item) return { item: DddItemDetailSchema.parse(JSON.parse(cached.payloadJson)), fetchedAt: cached.fetchedAt };
 
+    const serveStale = () =>
+      cached && this.now() - cached.fetchedAt < TTL.itemMaxStale
+        ? { item: DddItemDetailSchema.parse(JSON.parse(cached.payloadJson)), fetchedAt: cached.fetchedAt }
+        : undefined;
+    const failure = this.itemFailures.get(itemId);
+    if (failure && this.now() - failure.at < (failure.notFound ? TTL.itemNotFoundBackoff : TTL.itemFailureBackoff)) {
+      const stale = serveStale();
+      if (stale) return stale;
+      throw new DddError(`DDD item ${itemId} recently ${failure.notFound ? "not found" : "unavailable"}`, {
+        code: failure.notFound ? "not_found" : "recent_failure",
+        status: failure.notFound ? 404 : 503,
+      });
+    }
+
     return this.flights.run(`item:${itemId}`, async () => {
       try {
         const item = await this.ddd.getItem(itemId);
         const now = this.now();
         this.store.putItem(itemId, JSON.stringify(item), now);
+        this.itemFailures.delete(itemId);
         return { item, fetchedAt: now };
       } catch (err) {
+        this.itemFailures.set(itemId, { at: this.now(), notFound: err instanceof DddError && err.status === 404 });
         // Re-measure after the failed fetch (it can take tens of seconds); responses built from this
         // copy are cached only until it turns 30 days old (see forGame).
         if (cached && this.now() - cached.fetchedAt < TTL.itemMaxStale) {

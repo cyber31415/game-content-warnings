@@ -260,3 +260,24 @@ test("pruneCaches drops expired responses and stale channel entries", async () =
   assert.equal(internals.channelGames.size, 0);
   assert.equal(internals.touched.size, 0);
 });
+
+test("a deleted DDD item isn't re-requested on every view (quota protection)", async () => {
+  const { svc, store, up } = service();
+  store.replaceCorrections("12345", { "1001": 999 }); // correction points at an item DDD no longer has
+  const first = await svc.forChannel("12345");
+  assert.equal(first.status === "ok" && first.ddd.itemId, 101, "falls back to the automatic match");
+  const calls = up.dddCalls.filter((c) => c.endsWith("/items/999")).length;
+  svc.invalidateResponses();
+  await svc.forChannel("12345");
+  await svc.forChannel("12345");
+  assert.equal(up.dddCalls.filter((c) => c.endsWith("/items/999")).length, calls, "no new requests for the missing item");
+});
+
+test("an automatic match whose DDD item disappeared is dropped and re-matched later", async () => {
+  const { svc, store, up } = service();
+  store.putAutoMatch({ twitchGameId: "1001", twitchName: "The Last of Us Part I", dddItemId: 999, confidence: 1, status: "matched", candidatesJson: "[]", updatedAt: Date.now() });
+  const r = await svc.forChannel("12345");
+  assert.equal(r.status, "no_match");
+  assert.equal(store.getGameMap("1001"), undefined, "stale auto decision removed");
+  assert.ok(up);
+});

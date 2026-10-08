@@ -150,6 +150,11 @@ export class Store {
       .run(twitchGameId, twitchName, dddItemId, now);
   }
 
+  /** Forgets an automatic decision (e.g. its DDD item was deleted) so the matcher runs again. */
+  deleteAutoMatch(twitchGameId: string): void {
+    this.db.prepare("DELETE FROM game_map WHERE twitch_game_id = ? AND source = 'auto'").run(twitchGameId);
+  }
+
   /** Keeps manual mappings exactly in sync with a list (removes manual rows not in it). */
   syncManualMatches(pins: { twitchGameId: string; twitchName: string; dddItemId: number }[], now = Date.now()): void {
     const keep = new Set(pins.map((p) => p.twitchGameId));

@@ -22,7 +22,7 @@ const fixture = (name: string): unknown => {
 };
 const realStats = (fixture("item-14438") as { topicItemStats: unknown[] }).topicItemStats;
 
-const PORT = Number(process.env.MOCK_DDD_PORT ?? 8095);
+const PORT = Number(process.env.MOCK_DDD_PORT || 8095);
 
 const stat = (topicId: number, topicName: string, yesSum: number, noSum: number) => ({ topicId, topicName, yesSum, noSum, numComments: 0 });
 

@@ -13,7 +13,7 @@ import { DddItemDetailSchema, DddSearchResponseSchema } from "../ebs/src/ddd/sch
 const OUT = resolve(import.meta.dirname, "../ebs/test/fixtures/ddd");
 const key = process.env.DDD_API_KEY;
 if (!key) throw new Error("DDD_API_KEY not set (node --env-file=.env ...)");
-const ddd = new DddClient({ apiKey: key, apiBase: process.env.DDD_API_BASE ?? "https://www.doesthedogdie.com" });
+const ddd = new DddClient({ apiKey: key, apiBase: process.env.DDD_API_BASE || "https://www.doesthedogdie.com" });
 mkdirSync(OUT, { recursive: true });
 
 async function save(name: string, path: string): Promise<unknown> {

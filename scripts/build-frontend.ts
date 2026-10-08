@@ -11,7 +11,7 @@ const ROOT = resolve(import.meta.dirname, "..");
 const SRC = join(ROOT, "frontend/src");
 const OUT = join(ROOT, "dist/frontend");
 const zip = process.argv.includes("--zip");
-const ebsUrl = (process.env.EBS_URL ?? "https://localhost:8080/ebs").replace(/\/$/, "");
+const ebsUrl = (process.env.EBS_URL || "https://localhost:8080/ebs").replace(/\/$/, "");
 
 if (zip && (!ebsUrl.startsWith("https://") || /localhost|127\.0\.0\.1/.test(ebsUrl))) {
   console.error("A Hosted Test / review zip needs EBS_URL set to the public HTTPS address of the EBS.");

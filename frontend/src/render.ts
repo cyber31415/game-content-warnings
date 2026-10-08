@@ -9,7 +9,7 @@ export function attribution(): HTMLElement {
   return el("p", { className: "attribution" }, [externalLink(ATTRIBUTION_URL, "Powered by DoesTheDogDie.com")]);
 }
 
-/** DDD API terms §19.4: never state or imply DDD reviewed or endorsed this extension. */
+/** "Does the Dog Die?" is DDD's trademark (API terms §5): never state or imply DDD made, reviewed or endorsed this extension. */
 export function disclaimer(): HTMLElement {
   return el("p", { className: "note disclaimer", text: "Unofficial: not affiliated with or endorsed by DoesTheDogDie.com." });
 }

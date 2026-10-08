@@ -12,6 +12,7 @@ import { DddClient } from "../ebs/src/ddd/client.ts";
 import { AppTokenManager, HelixClient } from "../ebs/src/twitch/helix.ts";
 import { WarningsService } from "../ebs/src/warnings.ts";
 import { TopicCatalog } from "../ebs/src/topics.ts";
+import { Corrections } from "../ebs/src/corrections.ts";
 import type { Candidate } from "../ebs/src/match/matcher.ts";
 
 const top = Number(process.argv[process.argv.indexOf("--top") + 1]) || 50;
@@ -20,7 +21,8 @@ const tokens = new AppTokenManager({ clientId: config.twitch.clientId, clientSec
 const helix = new HelixClient({ clientId: config.twitch.clientId, apiBase: config.twitch.apiBase, tokens });
 const ddd = new DddClient({ apiKey: config.ddd.apiKey, apiBase: config.ddd.apiBase, maxQueueWaitMs: 60 * 60_000 });
 const store = new Store(resolve(import.meta.dirname, "../data/audit.sqlite"), { vfs: config.database.vfs });
-const svc = new WarningsService({ store, ddd, helix, topics: new TopicCatalog({ store, ddd }) });
+const corrections = new Corrections({ store, helix, extensionSecret: config.twitch.extensionSecret, ownerId: config.twitch.ownerId, mode: "local" });
+const svc = new WarningsService({ store, ddd, helix, topics: new TopicCatalog({ store, ddd }), corrections });
 
 const games = await helix.getTopGames(top);
 console.log(`Auditing ${games.length} top Twitch categories (~3s per uncached category)...`);
@@ -59,8 +61,9 @@ const md = [
   "",
   `DDD quota after run: ${JSON.stringify(ddd.budget)}`,
 ].join("\n");
-mkdirSync(resolve(import.meta.dirname, "../docs"), { recursive: true });
-const out = resolve(import.meta.dirname, `../docs/match-audit-${date}.md`);
+mkdirSync(resolve(import.meta.dirname, "../data"), { recursive: true });
+// data/ is gitignored: the report contains DDD data, which must not be published.
+const out = resolve(import.meta.dirname, `../data/match-audit-${date}.md`);
 writeFileSync(out, md + "\n");
 console.log(`\nWrote ${out}`);
 store.close();

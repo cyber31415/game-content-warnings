@@ -100,11 +100,21 @@ export type Upstream = {
   dddCalls: string[];
   helixCalls: string[];
   dddDown: boolean;
+  /** Fake Twitch developer configuration segments, by broadcaster id. */
+  segments: Map<string, string>;
+  segmentsDown: boolean;
 };
 
 /** Wires real clients to a fake Twitch + DDD upstream. */
 export function testDeps(configOverrides: Record<string, string> = {}) {
-  const up: Upstream = { channelGame: { id: "1001", name: "The Last of Us Part I" }, dddCalls: [], helixCalls: [], dddDown: false };
+  const up: Upstream = {
+    channelGame: { id: "1001", name: "The Last of Us Part I" },
+    dddCalls: [],
+    helixCalls: [],
+    dddDown: false,
+    segments: new Map(),
+    segmentsDown: false,
+  };
   const f = fakeFetch((url, init) => {
     if (url.startsWith("https://id.twitch.test/")) return json({ access_token: "apptoken", expires_in: 3600, token_type: "bearer" });
     if (url.startsWith("https://api.twitch.test/helix/")) {
@@ -113,6 +123,17 @@ export function testDeps(configOverrides: Record<string, string> = {}) {
         return json({ data: [{ broadcaster_id: "12345", broadcaster_name: "x", game_id: up.channelGame.id, game_name: up.channelGame.name }] });
       if (url.includes("/eventsub/subscriptions")) return json({ data: [{ id: "sub-1", status: "webhook_callback_verification_pending" }] }, 202);
       if (url.endsWith("/extensions/pubsub")) return new Response(null, { status: 204 });
+      if (url.includes("/extensions/configurations")) {
+        if (up.segmentsDown) return json({ message: "unavailable" }, 503);
+        if (init?.method === "PUT") {
+          const b = JSON.parse(String(init.body)) as { broadcaster_id: string; content: string; segment: string };
+          up.segments.set(b.broadcaster_id, b.content);
+          return new Response(null, { status: 204 });
+        }
+        const id = new URL(url).searchParams.get("broadcaster_id")!;
+        const content = up.segments.get(id);
+        return json({ data: content === undefined ? [] : [{ segment: "developer", broadcaster_id: id, content, version: "1" }] });
+      }
     }
     if (url.startsWith("https://ddd.test/")) {
       up.dddCalls.push(url.slice("https://ddd.test".length));

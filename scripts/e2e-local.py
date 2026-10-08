@@ -162,7 +162,9 @@ def main() -> int:
         )
         assert "Request Sent" in out.stdout + out.stderr or "202" in out.stdout + out.stderr or out.returncode == 0, out
         time.sleep(1)
-        page.reload()  # Helix mock still says "Just Developing"; only EventSub knows about the change
+        page.reload()  # served from the EBS view EventSub just updated (no Helix re-check needed)
+        expect(page.locator(".game")).to_have_text("Development Test", timeout=10_000)
+        set_mock_category("53446")  # like real Twitch, Helix now agrees (keeps later steps stable past the 90 s cache)
         expect(page.locator(".game")).to_have_text("Development Test", timeout=10_000)
         expect(page.locator(".state")).to_have_text("No content warning data found for this category.")
         check("EventSub channel.update (HMAC-signed) updates the EBS view immediately")
@@ -172,10 +174,25 @@ def main() -> int:
         page.evaluate("window.__harness.pubsub({type: 'warnings', data: {status: 'no_category'}})")
         expect(page.locator(".state")).to_contain_text("No category is set")
         shot(page, "09-panel-no-category")
-        page.evaluate("window.__harness.pubsub({type: 'warnings', data: {status: 'error'}})")
-        expect(page.locator(".state")).to_contain_text("unavailable right now")
-        shot(page, "10-panel-error")
         check("PubSub broadcast messages re-render the panel")
+        page.evaluate("window.__harness.pubsub({type: 'warnings', data: {status: 'error'}})")
+        page.wait_for_timeout(300)
+        expect(page.locator(".state")).to_contain_text("No category is set")
+        check("a transient error never replaces data the viewer already has")
+
+        # --- backend unreachable from the start: error state, then automatic retry
+        err_page = ctx.new_page()
+        err_page.route("**/ebs/api/warnings*", lambda route: route.abort())
+        # Same game the EBS currently has (from the EventSub step), so this page doesn't change channel state.
+        err_page.goto(f"{BASE}/harness/panel.html?channel={CHANNEL}&game=Development%20Test")
+        expect(err_page.locator(".state")).to_contain_text("unavailable right now", timeout=10_000)
+        expect(err_page.locator(".state")).to_contain_text("Trying again")
+        shot(err_page, "10-panel-error")
+        err_page.unroute("**/ebs/api/warnings*")
+        expect(err_page.locator(".game")).to_be_visible(timeout=30_000)  # retried after ~15 s
+        expect(err_page.locator(".body")).not_to_contain_text("unavailable")
+        err_page.close()
+        check("unreachable backend shows a retrying error, then recovers on its own")
 
         # --- broadcaster resolves the ambiguous match in the config page
         cfg = ctx.new_page()
@@ -191,8 +208,10 @@ def main() -> int:
         cfg.get_by_label("Wrong game? Search for the right one:").fill("just making")
         cfg.get_by_role("button", name="Search").click()
         expect(cfg.locator("ul.choices li", has_text="(not a video game)")).to_have_count(1)
+        expect(cfg.get_by_label("Wrong game? Search for the right one:")).to_have_value("just making")
+        expect(cfg.get_by_label("Wrong game? Search for the right one:")).to_be_focused()
         shot(cfg, "12-config-search")
-        check("broadcaster search lists games first and labels non-games")
+        check("broadcaster search lists games first, labels non-games, keeps the typed text and focus")
 
         page.reload()
         expect(page.locator(".game")).to_have_text("Development Test")

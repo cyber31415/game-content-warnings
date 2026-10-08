@@ -16,6 +16,7 @@ import { TTL, WarningsService } from "./warnings.ts";
 import { LiveUpdates } from "./live.ts";
 import { TopicCatalog } from "./topics.ts";
 import { MANUAL_MAPPINGS } from "./match/manual-mappings.ts";
+import { Corrections } from "./corrections.ts";
 
 export type Deps = { config: Config; helix: HelixClient; ddd: DddClient; store: Store };
 
@@ -27,14 +28,25 @@ export async function buildServer(deps: Deps): Promise<FastifyInstance> {
       config.env === "test"
         ? false
         : {
-            // Never log tokens or viewer identifiers.
-            redact: ["req.headers.authorization", 'req.headers["x-extension-jwt"]'],
+            // Never log tokens or viewer identifiers: requests are logged as method + path only
+            // (Fastify's default would include the client IP and port).
+            serializers: {
+              req: (req: { method?: string; url?: string }) => ({ method: req.method, url: req.url?.split("?")[0] }),
+            },
           },
   });
 
   for (const m of MANUAL_MAPPINGS) store.putManualMatch(m.twitchGameId, m.twitchName, m.dddItemId);
   const topics = new TopicCatalog({ store, ddd, log: app.log });
-  const warnings = new WarningsService({ store, ddd, helix, topics, log: app.log });
+  const corrections = new Corrections({
+    store,
+    helix,
+    extensionSecret: config.twitch.extensionSecret,
+    ownerId: config.twitch.ownerId,
+    mode: config.correctionsStore,
+    log: app.log,
+  });
+  const warnings = new WarningsService({ store, ddd, helix, topics, corrections, log: app.log });
   const live = new LiveUpdates({
     store,
     helix,
@@ -53,7 +65,16 @@ export async function buildServer(deps: Deps): Promise<FastifyInstance> {
   });
   // Generous per-IP limit: many viewers can share one IP (NAT, campuses). Upstream
   // protection comes from caching + single-flight, not from limiting viewers per channel.
-  await app.register(rateLimit, { max: 300, timeWindow: "1 minute", allowList: (req) => req.url === "/health" || req.url === "/eventsub" });
+  await app.register(rateLimit, {
+    max: 300,
+    timeWindow: "1 minute",
+    allowList: (req) => req.url === "/health" || req.url === "/eventsub",
+    // Prefer a client-IP header set by a proxy the client can't spoof (X-Forwarded-For can be forged).
+    keyGenerator: (req) => {
+      const v = config.clientIpHeader ? req.headers[config.clientIpHeader] : undefined;
+      return (typeof v === "string" && v.split(",")[0]!.trim()) || req.ip;
+    },
+  });
 
   await app.register(healthRoutes({ ddd }));
   await app.register(legalRoutes({ ...config.legal, updated: LEGAL_UPDATED }));
@@ -62,7 +83,7 @@ export async function buildServer(deps: Deps): Promise<FastifyInstance> {
   await app.register(async (api) => {
     api.addHook("preHandler", requireExtensionAuth(config.twitch.extensionSecret));
     await api.register(warningsRoutes({ warnings, live }));
-    await api.register(broadcasterRoutes({ store, ddd, warnings, live }));
+    await api.register(broadcasterRoutes({ ddd, warnings, live }));
   });
 
   // DDD terms: never keep cached data longer than 30 days.

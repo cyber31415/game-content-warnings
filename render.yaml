@@ -15,6 +15,12 @@ services:
         value: production
       - key: DATABASE_PATH
         value: /data/cache.sqlite
+      # The disk is wiped on sleep, so corrections live in Twitch's configuration service.
+      - key: CORRECTIONS_STORE
+        value: twitch
+      # Render is behind Cloudflare, which sets this header itself (clients can't forge it).
+      - key: CLIENT_IP_HEADER
+        value: cf-connecting-ip
       - key: EXT_NAME
         value: Game Content Warnings (Unofficial)
       - key: OPERATOR_NAME

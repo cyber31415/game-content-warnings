@@ -6,7 +6,7 @@
 
 Run design-preview.py first (it renders the panel states this script composes).
 
-    EXT_NAME="Game Content Warnings" .venv/bin/python scripts/make-listing-assets.py
+    .venv/bin/python scripts/make-listing-assets.py        (EXT_NAME=... to rename)
 """
 
 import base64
@@ -57,9 +57,14 @@ figure {{ display: flex; flex-direction: column; align-items: center; gap: 10px;
 figure img {{ width: 318px; height: auto; border-radius: 10px; border: 1px solid #34343a;
               box-shadow: 0 18px 50px rgba(0,0,0,.55); }}
 figcaption {{ font-size: 13px; color: #adadb8; }}
+/* DDD API terms §6: attribution wherever DDD data is shown, including these screenshots. */
+.credit {{ position: absolute; left: 0; right: 0; bottom: 22px; text-align: center; font-size: 13px; color: #c8c8d0; }}
+.credit b {{ color: #ffc867; font-weight: 600; }}
 </style></head><body>
 <div class="copy"><div class="brand">{LOGO_SVG}<span>{NAME}</span></div><h1>{title}</h1><ul>{bullets}</ul></div>
-<div class="shots">{imgs}</div></body></html>"""
+<div class="shots">{imgs}</div>
+<p class="credit">Warning data <b>Powered by DoesTheDogDie.com</b> · Unofficial: not affiliated with or endorsed by DoesTheDogDie.com</p>
+</body></html>"""
 
 
 def main() -> None:

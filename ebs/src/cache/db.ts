@@ -58,6 +58,14 @@ const MIGRATIONS = [
    )`,
   // Overrides made before this column existed have no category and are therefore ignored.
   `ALTER TABLE channels ADD COLUMN override_twitch_game_id TEXT`,
+  // Per-category corrections (one channel can correct several games). Local mirror of the
+  // Twitch configuration segment; the channels.override_* columns are no longer used.
+  `CREATE TABLE channel_corrections (
+     channel_id TEXT NOT NULL,
+     twitch_game_id TEXT NOT NULL,
+     ddd_item_id INTEGER NOT NULL,
+     PRIMARY KEY (channel_id, twitch_game_id)
+   )`,
 ];
 
 /** Thin typed wrapper over node:sqlite. All timestamps are epoch milliseconds. */
@@ -168,6 +176,8 @@ export class Store {
   /** DDD terms: cached data must not be older than 30 days. */
   purgeItemsOlderThan(cutoff: number): number {
     this.db.prepare("DELETE FROM ddd_meta WHERE fetched_at < ?").run(cutoff);
+    // Candidate names/years come from DDD too; drop them from stale automatic decisions.
+    this.db.prepare("UPDATE game_map SET candidates_json = '[]' WHERE source = 'auto' AND updated_at < ?").run(cutoff);
     return Number(this.db.prepare("DELETE FROM ddd_item_cache WHERE fetched_at < ?").run(cutoff).changes);
   }
 
@@ -210,18 +220,27 @@ export class Store {
     return this.getChannel(channelId)!;
   }
 
-  /** Saves a broadcaster's game-match correction for one Twitch category (null clears it). */
-  setChannelOverride(channelId: string, dddItemId: number | null, twitchGameId: string | null = null): void {
-    this.touchChannel(channelId);
-    this.db
-      .prepare("UPDATE channels SET override_ddd_item_id = ?, override_twitch_game_id = ? WHERE channel_id = ?")
-      .run(dddItemId, dddItemId === null ? null : twitchGameId, channelId);
+  /** Broadcaster corrections for a channel: Twitch category id -> DDD item id. */
+  getCorrections(channelId: string): Record<string, number> {
+    const rows = this.db.prepare("SELECT twitch_game_id, ddd_item_id FROM channel_corrections WHERE channel_id = ?").all(channelId) as {
+      twitch_game_id: string;
+      ddd_item_id: number;
+    }[];
+    return Object.fromEntries(rows.map((r) => [String(r.twitch_game_id), Number(r.ddd_item_id)]));
   }
 
-  /** The correction for this channel, but only if it was made for the category it's playing now. */
-  overrideFor(channelId: string, twitchGameId: string): number | null {
-    const row = this.getChannel(channelId);
-    return row && row.overrideDddItemId !== null && row.overrideTwitchGameId === twitchGameId ? row.overrideDddItemId : null;
+  /** Replaces a channel's corrections (e.g. after loading them from Twitch's configuration service). */
+  replaceCorrections(channelId: string, corrections: Record<string, number>): void {
+    this.db.exec("BEGIN");
+    try {
+      this.db.prepare("DELETE FROM channel_corrections WHERE channel_id = ?").run(channelId);
+      const insert = this.db.prepare("INSERT INTO channel_corrections (channel_id, twitch_game_id, ddd_item_id) VALUES (?, ?, ?)");
+      for (const [gameId, itemId] of Object.entries(corrections)) insert.run(channelId, gameId, itemId);
+      this.db.exec("COMMIT");
+    } catch (err) {
+      this.db.exec("ROLLBACK");
+      throw err;
+    }
   }
 
   setChannelSubscription(channelId: string, subscriptionId: string | null): void {

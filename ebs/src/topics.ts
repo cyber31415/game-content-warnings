@@ -7,6 +7,8 @@ const DAY = 24 * 60 * 60_000;
 const CATALOG_TTL = 7 * DAY;
 const CATALOG_MAX_STALE = 30 * DAY; // DDD terms: never use cached data older than 30 days
 const META_KEY = "topic-catalog";
+const STALE_RETRY = 10 * 60_000; // while serving a stale catalogue, retry DDD at most this often
+const FAILURE_BACKOFF = 60_000; // with nothing cached, don't retry DDD more often than this
 
 /** DDD's "Spoiler" topic category (cliffhangers, sad endings...): plot spoilers, not content warnings. */
 export const SPOILER_CATEGORY_ID = 13;
@@ -60,6 +62,7 @@ export class TopicCatalog {
   private readonly log: Logger;
   private memo: { dict: TopicDictionary; fetchedAt: number } | undefined;
   private inflight: Promise<TopicDictionary> | undefined;
+  private failedAt = 0;
   private readonly reportedUnknown = new Set<number>();
 
   constructor(opts: { store: Store; ddd: DddClient; now?: () => number; log?: Logger }) {
@@ -76,6 +79,7 @@ export class TopicCatalog {
       this.memo = { dict: buildDictionary(JSON.parse(cached.payloadJson) as Catalog, cached.fetchedAt), fetchedAt: cached.fetchedAt };
       return this.memo.dict;
     }
+    if (this.now() - this.failedAt < FAILURE_BACKOFF) throw new Error("DDD topic catalogue recently unavailable");
     this.inflight ??= (async () => {
       try {
         const catalog = await this.ddd.getTopicCatalog();
@@ -86,8 +90,12 @@ export class TopicCatalog {
       } catch (err) {
         if (cached && this.now() - cached.fetchedAt < CATALOG_MAX_STALE) {
           this.log.warn({ err: String(err) }, "serving stale DDD topic catalogue");
-          return buildDictionary(JSON.parse(cached.payloadJson) as Catalog, cached.fetchedAt);
+          const dict = buildDictionary(JSON.parse(cached.payloadJson) as Catalog, cached.fetchedAt);
+          // Reuse the stale copy for a while instead of retrying DDD on every request.
+          this.memo = { dict, fetchedAt: this.now() - CATALOG_TTL + STALE_RETRY };
+          return dict;
         }
+        this.failedAt = this.now();
         throw err;
       } finally {
         this.inflight = undefined;

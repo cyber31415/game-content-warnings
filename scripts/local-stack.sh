@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Runs the whole extension locally against mocks — no Twitch or DDD credentials needed:
+# Runs the whole extension locally against mocks (no Twitch credentials needed):
 #   Twitch CLI mock API  http://localhost:8090   (Helix + OAuth)
-#   mock DDD API         http://127.0.0.1:8095   (synthetic data)
+#   mock DDD API         http://127.0.0.1:8095   (replays real DDD responses you captured with
+#                                                 scripts/capture-ddd-fixtures.ts and your own key)
 #   EBS                  http://127.0.0.1:8081
 #   frontend + /ebs      https://localhost:8080  (harness: /harness/panel.html, /harness/config.html)
 #
@@ -12,6 +13,12 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VENV="$ROOT/.venv"
 export PATH="$VENV/bin:$PATH"
 cd "$ROOT"
+
+if [[ ! -f ebs/test/fixtures/ddd/topics.json ]]; then
+  echo "Capture DDD fixtures first (needs DDD_API_KEY in .env):"
+  echo "  node --env-file=.env scripts/capture-ddd-fixtures.ts"
+  exit 1
+fi
 
 pids=()
 cleanup() { for p in "${pids[@]}"; do kill "$p" 2>/dev/null || true; done; }

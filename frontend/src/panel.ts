@@ -13,6 +13,8 @@ const POLL_JITTER_MS = 60_000;
 const HINT_RETRY_MS = 12_000;
 const HINT_MAX_RETRIES = 3;
 
+const ERROR_RETRY_MS = 15_000; // first retry after a failure; doubles up to the poll interval
+
 const root = document.getElementById("app")!;
 const ext = window.Twitch?.ext;
 
@@ -20,11 +22,16 @@ let token: string | undefined;
 let gameHint: string | undefined;
 let data: WarningsResponse | "loading" = "loading";
 let dict: TopicDictionary | undefined;
+let topicsFailed = false;
 let visible = true;
 let pollTimer: number | undefined;
 let inflight = false;
 let hintRetries = 0;
+let errorDelay = ERROR_RETRY_MS;
+/** Bumped whenever data is applied, so an older in-flight response can't overwrite newer data. */
+let generation = 0;
 let query = "";
+let announceTimer: number | undefined;
 const openGroups = new Set<number>();
 
 // --- Page shell: built once so the search box keeps focus and text across updates.
@@ -41,18 +48,26 @@ const toolbar = el("div", { className: "toolbar", attrs: { role: "search" } }, [
 ]);
 const body = el("div", { className: "body" });
 const foot = el("div");
-// Compact pinned header (title + expand/collapse, game + total, search); the list scrolls under it.
+// Short status messages for screen readers (the list itself is not a live region).
+const announcer = el("p", { className: "visually-hidden", attrs: { role: "status", "aria-live": "polite" } });
+// Compact pinned header (title, game + total + expand/collapse, search); the list scrolls under it.
 const top = el("div", { className: "top" }, [
   el("header", {}, [el("div", { className: "row" }, [title]), el("div", { className: "row sub" }, [el("span", { className: "meta" }, [game, total]), expandAll])]),
   toolbar,
 ]);
-root.replaceChildren(top, body, foot);
+root.replaceChildren(top, body, foot, announcer);
 // Open category headings stick just below the pinned header while their topics scroll.
 new ResizeObserver(() => document.documentElement.style.setProperty("--top-h", `${top.offsetHeight}px`)).observe(top);
 
 search.addEventListener("input", () => {
   query = search.value;
   renderBody();
+  // Announce the result count once typing pauses.
+  window.clearTimeout(announceTimer);
+  announceTimer = window.setTimeout(() => {
+    const n = body.querySelectorAll("li.topic").length;
+    announcer.textContent = query.trim() ? (n ? `${n} matching warning${n === 1 ? "" : "s"}` : "No matching warnings") : "";
+  }, 600);
 });
 expandAll.addEventListener("click", () => {
   const groups = currentGroups();
@@ -66,6 +81,10 @@ function currentGroups(): Group[] {
   return groupWarnings(data.warnings, data.extraTopics, dict);
 }
 
+function hasGoodData(): boolean {
+  return data !== "loading" && data.status !== "error";
+}
+
 function render(): void {
   game.textContent = data !== "loading" && "category" in data ? data.category.name : "";
   game.hidden = !game.textContent;
@@ -73,32 +92,58 @@ function render(): void {
   foot.replaceChildren(footer(data));
 }
 
+function setExpandLabel(allOpen: boolean): void {
+  expandAll.textContent = allOpen ? "Collapse all" : "Expand all";
+  expandAll.setAttribute("aria-expanded", String(allOpen));
+}
+
 function renderBody(): void {
   const groups = currentGroups();
   const hasList = groups.length > 0;
   toolbar.hidden = !hasList;
-  expandAll.hidden = !hasList;
   total.hidden = !hasList;
+  // Search forces matching categories open, so expand/collapse has nothing to do while searching.
+  expandAll.hidden = !hasList || query.trim() !== "";
   if (!hasList) {
-    body.replaceChildren(data !== "loading" && data.status === "ok" && !dict ? renderStatus("loading") : renderStatus(data));
+    const showing: WarningsResponse | "loading" =
+      data !== "loading" && data.status === "ok" && !dict ? (topicsFailed ? { status: "error" } : "loading") : data;
+    body.replaceChildren(renderStatus(showing));
     return;
   }
   const count = groups.reduce((n, g) => n + g.topics.length, 0);
   total.textContent = ` · ${count} confirmed`;
-  const allOpen = groups.every((g) => openGroups.has(g.id));
-  expandAll.textContent = allOpen ? "Collapse all" : "Expand all";
-  expandAll.setAttribute("aria-expanded", String(allOpen));
+  setExpandLabel(groups.every((g) => openGroups.has(g.id)));
+
+  // Keep keyboard focus on the same category heading across re-renders.
+  const focused = document.activeElement instanceof HTMLElement && body.contains(document.activeElement)
+    ? document.activeElement.closest("details.group")?.getAttribute("data-group")
+    : null;
   body.replaceChildren(
     renderGroups(groups, {
       query,
       openGroups,
       onToggleGroup: (id, open) => {
         open ? openGroups.add(id) : openGroups.delete(id);
-        const nowAllOpen = groups.every((g) => openGroups.has(g.id));
-        expandAll.textContent = nowAllOpen ? "Collapse all" : "Expand all";
+        setExpandLabel(groups.every((g) => openGroups.has(g.id)));
       },
     }),
   );
+  if (focused) (body.querySelector(`details.group[data-group="${focused}"] > summary`) as HTMLElement | null)?.focus();
+}
+
+/** Applies new data; returns false when it changes nothing visible. */
+function apply(next: WarningsResponse): boolean {
+  // Never replace good data with a transient error; keep showing what we have.
+  if (next.status === "error" && hasGoodData()) return false;
+  if (data !== "loading" && JSON.stringify(data) === JSON.stringify(next)) return false;
+  if (data !== "loading" && "category" in data && "category" in next && data.category.id !== next.category.id) {
+    openGroups.clear(); // new game: start collapsed again
+  }
+  const firstOrChanged = data === "loading" || !("category" in data) || !("category" in next) || data.category.id !== next.category.id;
+  data = next;
+  generation++;
+  if (firstOrChanged && "category" in next) announcer.textContent = `Content warnings for ${next.category.name}`;
+  return true;
 }
 
 async function ensureTopics(): Promise<void> {
@@ -106,36 +151,50 @@ async function ensureTopics(): Promise<void> {
   if (dict?.version === data.topicsVersion) return;
   try {
     dict = await loadTopics(token, data.topicsVersion);
+    topicsFailed = false;
   } catch {
-    data = { status: "error" };
+    topicsFailed = !dict; // an older dictionary still renders names; only fail without one
   }
 }
 
 async function refresh(): Promise<void> {
   if (!token || inflight) return;
   inflight = true;
+  const startedAt = generation;
+  let failed = false;
   try {
     const q = gameHint ? `?hint=${encodeURIComponent(gameHint)}` : "";
     const next = await ebs<WarningsResponse>(token, `/api/warnings${q}`);
-    if (data !== "loading" && "category" in data && "category" in next && data.category.id !== next.category.id) {
-      openGroups.clear(); // new game: start collapsed again
-    }
-    data = next;
+    failed = next.status === "error";
+    // A PubSub update arrived while we were waiting: it's newer, keep it.
+    if (generation === startedAt) apply(next);
     await ensureTopics();
   } catch {
-    // Keep showing the last good data; only show the fallback if we never had any.
-    if (data === "loading") data = { status: "error" };
+    failed = true;
+    if (data === "loading") apply({ status: "error" });
   } finally {
     inflight = false;
   }
   render();
+  scheduleNext(failed || topicsFailed);
+}
+
+/** Next check: quick backoff after failures, a few retries while the EBS lags a category change, else the poll. */
+function scheduleNext(failed: boolean): void {
+  window.clearTimeout(pollTimer);
+  if (!visible) return;
+  if (failed) {
+    pollTimer = window.setTimeout(refresh, errorDelay);
+    errorDelay = Math.min(errorDelay * 2, POLL_MS);
+    return;
+  }
+  errorDelay = ERROR_RETRY_MS;
   if (categoryLagsHint() && hintRetries < HINT_MAX_RETRIES) {
     hintRetries++;
-    window.clearTimeout(pollTimer);
     pollTimer = window.setTimeout(refresh, HINT_RETRY_MS);
-  } else {
-    schedulePoll();
+    return;
   }
+  pollTimer = window.setTimeout(refresh, POLL_MS + Math.random() * POLL_JITTER_MS);
 }
 
 /** True when Twitch says the game changed but the EBS answer is still for another category. */
@@ -143,12 +202,6 @@ function categoryLagsHint(): boolean {
   if (!gameHint || data === "loading") return false;
   if (data.status === "no_category") return true;
   return "category" in data && data.category.name !== gameHint;
-}
-
-function schedulePoll(): void {
-  window.clearTimeout(pollTimer);
-  if (!visible) return;
-  pollTimer = window.setTimeout(refresh, POLL_MS + Math.random() * POLL_JITTER_MS);
 }
 
 /** Spread viewer requests out so a category change doesn't hit the EBS all at once. */
@@ -192,14 +245,17 @@ if (!ext) {
       return;
     }
     if (msg.type === "warnings") {
-      if (data !== "loading" && "category" in data && "category" in msg.data && data.category.id !== msg.data.category.id) openGroups.clear();
-      data = msg.data;
-      if ("category" in msg.data) gameHint = msg.data.category.name;
-      void ensureTopics().then(render);
-      schedulePoll();
+      if ("category" in msg.data) {
+        gameHint = msg.data.category.name;
+        hintRetries = 0;
+      }
+      if (!apply(msg.data)) return;
+      void ensureTopics().then(() => {
+        render();
+        scheduleNext(topicsFailed);
+      });
     } else if (msg.type === "refresh") {
       refreshSoon(15_000);
     }
   });
-
 }

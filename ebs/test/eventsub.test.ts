@@ -45,3 +45,54 @@ test("replay guard drops duplicate message ids", () => {
   assert.equal(g.firstTime("a"), false);
   assert.equal(g.firstTime("b"), true);
 });
+
+import { LiveUpdates } from "../src/live.ts";
+import { HelixClient, AppTokenManager } from "../src/twitch/helix.ts";
+import { fakeFetch, json } from "./helpers.ts";
+
+test("an error result is never broadcast over viewers' good data", async () => {
+  const sent: string[] = [];
+  const live = new LiveUpdates({
+    store: {} as never,
+    helix: { sendExtensionBroadcast: async (_j: string, _c: string, m: string) => void sent.push(m) } as never,
+    warnings: { forChannel: async () => ({ status: "error" }) } as never,
+    extensionSecret: new Uint8Array(32),
+    ownerId: "1000",
+    log: { info() {}, warn() {} },
+  });
+  await live.broadcastCurrent("12345");
+  assert.deepEqual(sent, []);
+});
+
+test("broadcasts for one channel run in order", async () => {
+  const sent: string[] = [];
+  let n = 0;
+  const live = new LiveUpdates({
+    store: {} as never,
+    helix: { sendExtensionBroadcast: async (_j: string, _c: string, m: string) => void sent.push(JSON.parse(m).data.category.name) } as never,
+    // First lookup is slow, second fast: order must still be preserved.
+    warnings: {
+      forChannel: async () => {
+        const i = ++n;
+        await new Promise((r) => setTimeout(r, i === 1 ? 50 : 0));
+        return { status: "no_match", category: { id: String(i), name: `game${i}` } };
+      },
+    } as never,
+    extensionSecret: new Uint8Array(32),
+    ownerId: "1000",
+    log: { info() {}, warn() {} },
+  });
+  await Promise.all([live.broadcastCurrent("1"), live.broadcastCurrent("1")]);
+  assert.deepEqual(sent, ["game1", "game2"]);
+});
+
+test("an existing subscription is found after a 409 by filtering on user only", async () => {
+  const tokens = new AppTokenManager({ clientId: "c", clientSecret: "s", tokenUrl: "https://id/token", fetchFn: fakeFetch(() => json({ access_token: "t", expires_in: 3600, token_type: "bearer" })).fn });
+  const f = fakeFetch((url, init) => {
+    if (init?.method === "POST") return json({ message: "conflict" }, 409);
+    assert.ok(!url.includes("type="), "must not combine filters");
+    return json({ data: [{ id: "other", type: "stream.online", status: "enabled" }, { id: "sub-9", type: "channel.update", status: "enabled" }] });
+  });
+  const helix = new HelixClient({ clientId: "c", apiBase: "https://api/helix", tokens, fetchFn: f.fn });
+  assert.equal(await helix.subscribeChannelUpdate("42", "https://x/eventsub", "secret-123456"), "sub-9");
+});

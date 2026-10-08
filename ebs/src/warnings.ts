@@ -5,6 +5,7 @@ import { DddItemDetailSchema, type DddItemDetail, type DddItemSummary } from "./
 import { rankCandidates, searchQueries, type Candidate } from "./match/matcher.ts";
 import type { HelixClient } from "./twitch/helix.ts";
 import { fallbackGroup, type TopicCatalog } from "./topics.ts";
+import type { Corrections } from "./corrections.ts";
 
 const MINUTE = 60_000;
 const DAY = 24 * 60 * MINUTE;
@@ -76,6 +77,7 @@ export class WarningsService {
   private readonly ddd: DddClient;
   private readonly helix: HelixClient;
   readonly topics: TopicCatalog;
+  readonly corrections: Corrections;
   private readonly now: () => number;
   private readonly log: Logger;
   private readonly flights = new SingleFlight();
@@ -83,11 +85,20 @@ export class WarningsService {
   private readonly responses = new Map<string, { body: WarningsResponse; at: number }>();
   private readonly touched = new Map<string, number>();
 
-  constructor(opts: { store: Store; ddd: DddClient; helix: HelixClient; topics: TopicCatalog; now?: () => number; log?: Logger }) {
+  constructor(opts: {
+    store: Store;
+    ddd: DddClient;
+    helix: HelixClient;
+    topics: TopicCatalog;
+    corrections: Corrections;
+    now?: () => number;
+    log?: Logger;
+  }) {
     this.store = opts.store;
     this.ddd = opts.ddd;
     this.helix = opts.helix;
     this.topics = opts.topics;
+    this.corrections = opts.corrections;
     this.now = opts.now ?? Date.now;
     this.log = opts.log ?? { warn: () => {} };
   }
@@ -101,7 +112,7 @@ export class WarningsService {
     try {
       const game = await this.channelGame(channelId, opts.hint);
       if (!game.id) return { status: "no_category" };
-      const override = this.store.overrideFor(channelId, game.id);
+      const override = await this.corrections.for(channelId, game.id);
       return await this.forGame(game, override);
     } catch (err) {
       this.log.warn({ err: String(err) }, "warnings lookup failed");
@@ -129,13 +140,14 @@ export class WarningsService {
     return true;
   }
 
-  async channelGame(channelId: string, hint?: string): Promise<Category> {
+  /** Channel's current category. `fresh` skips the cache (used before saving a correction). */
+  async channelGame(channelId: string, hint?: string, opts: { fresh?: boolean } = {}): Promise<Category> {
     const cached = this.channelGames.get(channelId);
     const age = cached ? this.now() - cached.at : Infinity;
     const hintDiffers = hint !== undefined && cached !== undefined && hint !== cached.game.name;
-    if (cached && age < TTL.channelGame && !(hintDiffers && age >= TTL.channelHintRefresh)) return cached.game;
+    if (!opts.fresh && cached && age < TTL.channelGame && !(hintDiffers && age >= TTL.channelHintRefresh)) return cached.game;
 
-    return this.flights.run(`channel:${channelId}`, async () => {
+    return this.flights.run(`channel:${channelId}${opts.fresh ? ":fresh" : ""}`, async () => {
       const ch = await this.helix.getChannel(channelId);
       const game = { id: ch?.game_id ?? "", name: ch?.game_name ?? "" };
       this.channelGames.set(channelId, { game, at: this.now() });

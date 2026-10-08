@@ -27,17 +27,20 @@ export class DddError extends Error {
 }
 
 /**
- * Client-side limiter: a minimum spacing between requests (to stay under the
- * per-minute tier limit) plus a circuit that opens after a 429 until Retry-After.
+ * Client-side limiter (GCRA): a sustained rate under the tier's per-minute limit with a small
+ * burst allowance (so a cold start's few lookups aren't spaced seconds apart), plus a circuit
+ * that opens after a 429 until Retry-After.
  */
 class Limiter {
-  private nextSlot = 0;
+  private tat = 0; // theoretical arrival time of the next request
   private blockedUntil = 0;
   private readonly spacingMs: number;
+  private readonly burstMs: number;
   private readonly now: () => number;
 
-  constructor(perMinute: number, now: () => number) {
+  constructor(perMinute: number, burst: number, now: () => number) {
     this.spacingMs = Math.ceil(60_000 / perMinute);
+    this.burstMs = (Math.max(1, burst) - 1) * this.spacingMs;
     this.now = now;
   }
 
@@ -47,10 +50,10 @@ class Limiter {
     if (now < this.blockedUntil) {
       throw new DddError("DDD rate limit in effect", { code: "rate_limited_local", status: 429, retryAfterSeconds: Math.ceil((this.blockedUntil - now) / 1000) });
     }
-    const slot = Math.max(now, this.nextSlot);
-    const wait = slot - now;
+    const tat = Math.max(now, this.tat);
+    const wait = Math.max(0, tat - this.burstMs - now);
     if (wait > maxWaitMs) throw new DddError("DDD request queue full", { code: "queue_full", status: 429 });
-    this.nextSlot = slot + this.spacingMs;
+    this.tat = tat + this.spacingMs;
     return wait;
   }
 
@@ -76,6 +79,7 @@ export class DddClient {
     apiBase: string;
     fetchFn?: FetchFn;
     perMinute?: number;
+    burst?: number;
     maxQueueWaitMs?: number;
     now?: () => number;
     sleep?: (ms: number) => Promise<void>;
@@ -83,8 +87,8 @@ export class DddClient {
     this.apiKey = opts.apiKey;
     this.apiBase = opts.apiBase;
     this.fetchFn = opts.fetchFn ?? fetch;
-    // Free tier allows 30/min; leave headroom for the fixture/audit scripts.
-    this.limiter = new Limiter(opts.perMinute ?? 20, opts.now ?? Date.now);
+    // Free tier allows 30/min: 20/min sustained plus a burst of 5 stays under it.
+    this.limiter = new Limiter(opts.perMinute ?? 20, opts.burst ?? 5, opts.now ?? Date.now);
     this.maxQueueWaitMs = opts.maxQueueWaitMs ?? 15_000;
     this.sleep = opts.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
   }

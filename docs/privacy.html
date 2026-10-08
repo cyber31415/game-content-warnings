@@ -34,9 +34,10 @@ information about viewers.</p>
 
 <h2>What we store</h2>
 <ul>
-  <li><strong>Per channel:</strong> the channel ID, when the extension was last used on it, and, if the
-  broadcaster chose one, a manual game selection. Needed to show the right warnings and to receive Twitch's
-  notification when the channel changes category.</li>
+  <li><strong>Per channel:</strong> the channel ID and when the extension was last used on it, needed to show
+  the right warnings and to receive Twitch's notification when the channel changes category.</li>
+  <li><strong>Broadcaster corrections:</strong> if a broadcaster picks a different DoesTheDogDie entry for a game,
+  that choice (game ID and entry ID) is saved in Twitch's Extension Configuration Service for that channel.</li>
   <li><strong>Public game data:</strong> Twitch category names and DoesTheDogDie content-warning data, cached to
   keep the extension fast. Cached DoesTheDogDie data is refreshed and never kept longer than 30 days.</li>
 </ul>
@@ -52,8 +53,9 @@ The panel does not store anything in your browser.</p>
 </ul>
 
 <h2>Retention and deletion</h2>
-<p>Channel records are deleted on request. Server logs contain no viewer identifiers and are kept for a short
-period for troubleshooting. To have a channel's data removed, email <a href="mailto:CyberSpaceman09@proton.me">CyberSpaceman09@proton.me</a>.</p>
+<p>Channel records and corrections are deleted on request. Server logs record only which page or API path was
+requested and the result, with no viewer identifiers or IP addresses, and are kept for a short period for
+troubleshooting. To have a channel's data removed, email <a href="mailto:CyberSpaceman09@proton.me">CyberSpaceman09@proton.me</a>.</p>
 
 <h2>Children</h2>
 <p>The extension is available to anyone who can use Twitch under Twitch's own age rules. We do not knowingly

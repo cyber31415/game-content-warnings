@@ -1,5 +1,11 @@
 # Project Brief: Twitch Content-Warning Extension
 
+> **Status (2026-10-07): original planning brief, kept for history.** Section 2 is kept current.
+> Sections 3–9 describe the initial plan; the built extension differs in places (DDD API v3, Yes-only
+> list grouped by category, no topic hiding or vote counts, per-category corrections stored in Twitch's
+> configuration service, Render hosting). Current behaviour and setup: `README.md`, `docs/SETUP.md`,
+> `docs/CONSOLE.md`, `docs/ddd-terms-notes.md`.
+
 > Handoff document for Claude Code. Drop this in the repo root (or `docs/`), then see **Section 12** for the first prompt to give Claude Code.
 
 ## 1. What we're building
@@ -175,10 +181,8 @@ ALLOWED_ORIGIN=                # extension frontend origin(s)
 - Refresh every ~5 minutes; pause refresh when the panel is not visible if the helper exposes that.
 
 ### Config view (broadcaster)
-- *(Updated 2026-10-07)* Only setting: a game-match correction (`overrideDddItemId`), stored by the EBS via a broadcaster-only endpoint. Topic hiding and vote counts were dropped: viewers should always see every confirmed warning, unedited.
-- Keep the stored JSON small (segment size limits apply; verify the limit).
-- Frontend reads the segment and passes `overrideDddItemId` to the EBS.
-- Nice-to-have: a "wrong game matched?" search box in config that calls an EBS endpoint to search DDD and let the streamer pick.
+- *(Updated 2026-10-07)* Only setting: a game-match correction, saved through a broadcaster-only EBS endpoint and applied only to the category it was made for. Topic hiding and vote counts were dropped: viewers should always see every confirmed warning, unedited.
+- *(Built)* The EBS stores corrections per Twitch category in the channel's **developer** configuration segment (survives hosts with ephemeral disks); the frontend never sends an override for viewers. The config page includes the "wrong game matched?" DDD search.
 
 ## 8. Twitch Developer Console setup (manual steps for the human)
 

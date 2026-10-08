@@ -22,10 +22,14 @@ npm install
 npm test && npm run typecheck
 ```
 
-## 1. Try it locally with no credentials
+## 1. Try it locally against mocks (needs only a DDD API key)
+The mock DDD server replays real DDD responses, which aren't committed (DDD's terms forbid
+redistributing them). Capture them once with your own key first (see step 2):
+`node --env-file=.env scripts/capture-ddd-fixtures.ts`.
+
 ```fish
 bash scripts/local-stack.sh            # Twitch mock API, mock DDD, EBS, HTTPS dev server
-.venv/bin/python scripts/e2e-local.py  # in another terminal: 10 browser checks + screenshots
+.venv/bin/python scripts/e2e-local.py  # in another terminal: browser checks + screenshots
 ```
 Open https://localhost:8080/harness/panel.html once and accept the self-signed certificate.
 Screenshots land in `data/screenshots/`.
@@ -46,13 +50,14 @@ Every field, value and upload is listed in **`docs/CONSOLE.md`**. The steps belo
    - **Asset Hosting**: Testing Base URI `https://localhost:8080/`, Panel Viewer Path `panel.html`,
      Config Path `config.html`, panel height 500. Tick **Mobile** support and set the Mobile Path
      to `panel.html` too (the layout is fluid and works at phone width).
-   - **Capabilities**: configuration via **Extension Configuration Service**.
-     **Allowlist for URL Fetching Domains**: `https://localhost:8080` (Local Test) and later your EBS origin.
+   - **Capabilities**: configuration via **Extension Configuration Service** (segment versions blank).
+     **Allowlist for URL Fetching Domains**: your EBS origin (allowlists aren't enforced in Local Test).
 3. Extension **Settings**: generate the **Client Secret**, copy the **Extension Secret** (base64 key
    under Extension Client Configuration) and the **Client ID** into `.env`. Set `TWITCH_EXT_OWNER_ID`
    to your numeric user ID.
 4. Check matching quality on real data: `node --env-file=.env scripts/match-audit.ts --top 50`
-   (~100 DDD requests) → `docs/match-audit-<date>.md`. Review every `matched` row.
+   (~100 DDD requests) → `data/match-audit-<date>.md` (kept out of git: it contains DDD data).
+   Review every `matched` row.
 
 ## 4. Local Test on your own channel
 ```fish
@@ -69,7 +74,8 @@ on your channel, activate it as a panel, and switch categories to watch it updat
 pick this repo, and paste the five secrets it asks for (from your local `.env`). Render builds the
 Dockerfile, gives it `https://<name>.onrender.com`, generates `EVENTSUB_SECRET`, and points the EventSub
 callback at `$RENDER_EXTERNAL_URL/eventsub` automatically. Free services sleep after 15 minutes idle
-(first request then takes ~30–60 s) and start with an empty cache.
+(first request then takes ~30–60 s) and start with an empty cache; broadcaster corrections survive
+because they're stored in Twitch's configuration service (`CORRECTIONS_STORE=twitch`).
 
 **Any other host:**
 Any host with HTTPS on port 443 and a persistent disk for SQLite. The `Dockerfile` runs the EBS;
@@ -93,7 +99,7 @@ script is the Twitch helper. Then **Submit for Review**. Once approved, **Releas
 appears in the extension directory for any streamer to activate.
 
 ## Operations
-- `docs/match-audit-*.md` and the `game_map` table (`status != 'matched'`) show categories that
+- `data/match-audit-*.md` and the `game_map` table (`status != 'matched'`) show categories that
   need a manual mapping. Permanent pins belong in `ebs/src/match/manual-mappings.ts` (applied at
   every start, so they reach any server); `node --env-file=.env scripts/map-game.ts list | set | clear`
   inspects or edits one database directly.

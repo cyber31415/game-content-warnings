@@ -41,7 +41,10 @@ export function el<K extends keyof HTMLElementTagNameMap>(
 /** Off-site link with the visible marker Twitch requires (guideline 4.6.2). */
 export function externalLink(href: string, text: string): HTMLAnchorElement {
   const a = el("a", { text, attrs: { href, target: "_blank", rel: "noopener noreferrer" } });
-  a.append(el("span", { className: "offsite", text: " ↗", attrs: { "aria-label": "(opens an external site)" } }));
+  a.append(
+    el("span", { className: "offsite", text: " ↗", attrs: { "aria-hidden": "true" } }),
+    el("span", { className: "visually-hidden", text: " (opens an external site in a new tab)" }),
+  );
   return a;
 }
 

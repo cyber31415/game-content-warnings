@@ -46,13 +46,13 @@ test("broadcaster endpoints refuse viewers", async () => {
 test("broadcaster can set and clear an override", async () => {
   const { app: a } = await app();
   const headers = await auth({ role: "broadcaster" });
-  const put = await a.inject({ method: "PUT", url: "/api/broadcaster/override", headers, payload: { dddItemId: 202 } });
+  const put = await a.inject({ method: "PUT", url: "/api/broadcaster/override", headers, payload: { dddItemId: 202, twitchGameId: "1001" } });
   assert.equal(put.statusCode, 200);
   const w = (await a.inject({ url: "/api/warnings", headers: await auth() })).json();
   assert.equal(w.ddd.itemId, 202);
-  const bad = await a.inject({ method: "PUT", url: "/api/broadcaster/override", headers, payload: { dddItemId: 999999 } });
+  const bad = await a.inject({ method: "PUT", url: "/api/broadcaster/override", headers, payload: { dddItemId: 999999, twitchGameId: "1001" } });
   assert.equal(bad.statusCode, 422);
-  const clear = await a.inject({ method: "PUT", url: "/api/broadcaster/override", headers, payload: { dddItemId: null } });
+  const clear = await a.inject({ method: "PUT", url: "/api/broadcaster/override", headers, payload: { dddItemId: null, twitchGameId: "1001" } });
   assert.equal(clear.statusCode, 200);
   assert.equal((await a.inject({ url: "/api/warnings", headers: await auth() })).json().ddd.itemId, 101);
 });
@@ -60,9 +60,51 @@ test("broadcaster can set and clear an override", async () => {
 test("a correction can't be saved while the channel has no category", async () => {
   const { app: a, up } = await app();
   up.channelGame = { id: "", name: "" };
-  const res = await a.inject({ method: "PUT", url: "/api/broadcaster/override", headers: await auth({ role: "broadcaster" }), payload: { dddItemId: 202 } });
+  const res = await a.inject({ method: "PUT", url: "/api/broadcaster/override", headers: await auth({ role: "broadcaster" }), payload: { dddItemId: 202, twitchGameId: "1001" } });
   assert.equal(res.statusCode, 409);
   assert.match(res.json().error, /Stream Manager/);
+});
+
+test("a correction for a category the channel is no longer playing is refused", async () => {
+  const { app: a, up } = await app();
+  const headers = await auth({ role: "broadcaster" });
+  up.channelGame = { id: "2002", name: "Celeste" }; // switched games after opening the page
+  const res = await a.inject({ method: "PUT", url: "/api/broadcaster/override", headers, payload: { dddItemId: 202, twitchGameId: "1001" } });
+  assert.equal(res.statusCode, 409);
+});
+
+test("in production, corrections are stored in the Twitch developer segment and survive a restart", async () => {
+  const d = testDeps({ NODE_ENV: "development", CORRECTIONS_STORE: "twitch" });
+  d.config.env = "test"; // keep the logger quiet
+  const a = await buildServer(d);
+  const headers = await auth({ role: "broadcaster" });
+  const put = await a.inject({ method: "PUT", url: "/api/broadcaster/override", headers, payload: { dddItemId: 202, twitchGameId: "1001" } });
+  assert.equal(put.statusCode, 200);
+  assert.deepEqual(JSON.parse(d.up.segments.get("12345")!), { v: 1, c: { "1001": 202 } });
+
+  // Simulate Render wiping the disk: new store, same Twitch segment.
+  const { Store } = await import("../src/cache/db.ts");
+  const fresh = await buildServer({ ...d, store: new Store(":memory:") });
+  const w = (await fresh.inject({ url: "/api/warnings", headers: await auth() })).json();
+  assert.equal(w.ddd.itemId, 202);
+});
+
+test("if Twitch can't store a correction, the broadcaster is told instead of losing it silently", async () => {
+  const d = testDeps({ CORRECTIONS_STORE: "twitch" });
+  const a = await buildServer(d);
+  d.up.segmentsDown = true;
+  const res = await a.inject({ method: "PUT", url: "/api/broadcaster/override", headers: await auth({ role: "broadcaster" }), payload: { dddItemId: 202, twitchGameId: "1001" } });
+  assert.equal(res.statusCode, 503);
+});
+
+test("rate limiting keys on the trusted client-IP header when configured", async () => {
+  const { app: a } = await app({ CLIENT_IP_HEADER: "cf-connecting-ip" });
+  const h = async (ip: string, xff: string) =>
+    Number((await a.inject({ url: "/api/warnings", headers: { ...(await auth()), "cf-connecting-ip": ip, "x-forwarded-for": xff } })).headers["x-ratelimit-remaining"]);
+  const first = await h("203.0.113.5", "1.1.1.1");
+  const second = await h("203.0.113.5", "2.2.2.2"); // forged X-Forwarded-For doesn't reset the counter
+  assert.equal(second, first - 1);
+  assert.equal(await h("198.51.100.7", "1.1.1.1"), first);
 });
 
 test("broadcaster override rejects junk", async () => {

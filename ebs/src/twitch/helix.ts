@@ -146,9 +146,10 @@ export class HelixClient {
   }
 
   private async findSubscription(broadcasterId: string): Promise<string | undefined> {
-    const json = await this.get(`/eventsub/subscriptions?type=channel.update&user_id=${encodeURIComponent(broadcasterId)}`);
-    const subs = dataOf(z.object({ id: z.string(), status: z.string() })).parse(json).data;
-    return subs.find((s) => s.status === "enabled" || s.status.startsWith("webhook_callback_verification"))?.id;
+    // Twitch allows only one filter per request: filter by user, then by type here.
+    const json = await this.get(`/eventsub/subscriptions?user_id=${encodeURIComponent(broadcasterId)}`);
+    const subs = dataOf(z.object({ id: z.string(), type: z.string(), status: z.string() })).parse(json).data;
+    return subs.find((s) => s.type === "channel.update" && (s.status === "enabled" || s.status.startsWith("webhook_callback_verification")))?.id;
   }
 
   async deleteSubscription(id: string): Promise<void> {
@@ -169,6 +170,31 @@ export class HelixClient {
       signal: AbortSignal.timeout(10_000),
     });
     if (!res.ok) throw new Error(`Helix extension PubSub failed: HTTP ${res.status}`);
+  }
+
+  /**
+   * Per-channel "developer" configuration segment (Twitch Extension Configuration Service):
+   * writable only by the EBS, survives restarts, 5 KB max. Authenticated with an EBS-signed JWT.
+   */
+  async getDeveloperSegment(ebsJwt: string, broadcasterId: string): Promise<string | undefined> {
+    const q = `extension_id=${encodeURIComponent(this.clientId)}&segment=developer&broadcaster_id=${encodeURIComponent(broadcasterId)}`;
+    const res = await this.fetchFn(`${this.apiBase}/extensions/configurations?${q}`, {
+      headers: { "Client-Id": this.clientId, Authorization: `Bearer ${ebsJwt}` },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) throw new Error(`Helix get configuration segment failed: HTTP ${res.status}`);
+    const parsed = dataOf(z.object({ content: z.string().optional() })).parse(await res.json());
+    return parsed.data[0]?.content;
+  }
+
+  async setDeveloperSegment(ebsJwt: string, broadcasterId: string, content: string): Promise<void> {
+    const res = await this.fetchFn(`${this.apiBase}/extensions/configurations`, {
+      method: "PUT",
+      headers: { "Client-Id": this.clientId, Authorization: `Bearer ${ebsJwt}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ extension_id: this.clientId, segment: "developer", broadcaster_id: broadcasterId, content, version: "1" }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) throw new Error(`Helix set configuration segment failed: HTTP ${res.status}`);
   }
 
   private async get(path: string): Promise<unknown> {

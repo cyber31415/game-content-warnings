@@ -47,8 +47,14 @@ export function renderGroups(groups: Group[], opts: GroupsOptions): HTMLElement 
     "div",
     { className: "groups" },
     visible.map((g) => {
-      const details = el("details", { className: "group" }, [
-        el("summary", {}, [el("span", { className: "group-name", text: g.name }), el("span", { className: "count", text: String(g.topics.length), attrs: { "aria-label": `${g.topics.length} warnings` } })]),
+      const details = el("details", { className: "group", attrs: { "data-group": String(g.id) } }, [
+        el("summary", {}, [
+          el("span", { className: "group-name", text: g.name }),
+          el("span", { className: "count" }, [
+            el("span", { text: String(g.topics.length) }),
+            el("span", { className: "visually-hidden", text: g.topics.length === 1 ? " warning" : " warnings" }),
+          ]),
+        ]),
         el("ul", { className: "topics" }, g.topics.map((t) => topicItem(t))),
       ]);
       // While searching, matching groups open automatically.
@@ -88,7 +94,7 @@ export function renderStatus(data: WarningsResponse | "loading"): HTMLElement {
     case "no_category":
       return el("p", { className: "state", text: "No category is set for this channel, so there are no game warnings to show." });
     case "error":
-      return el("p", { className: "state", text: "Content warnings are unavailable right now. We'll try again shortly." });
+      return el("p", { className: "state", text: "Content warnings are unavailable right now. Trying again shortly…" });
   }
 }
 

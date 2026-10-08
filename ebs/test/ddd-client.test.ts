@@ -33,11 +33,18 @@ test("429 opens a local circuit until Retry-After", async () => {
   assert.equal(f.calls.length, 2);
 });
 
-test("spaces requests to respect the per-minute limit", async () => {
+test("spaces requests to respect the per-minute limit (no burst)", async () => {
   const waits: number[] = [];
-  const c = new DddClient({ apiKey: "k", apiBase: "https://ddd", fetchFn: fakeFetch(() => json([])).fn, perMinute: 20, now: () => 0, sleep: async (ms) => void waits.push(ms) });
+  const c = new DddClient({ apiKey: "k", apiBase: "https://ddd", fetchFn: fakeFetch(() => json([])).fn, perMinute: 20, burst: 1, now: () => 0, sleep: async (ms) => void waits.push(ms) });
   await Promise.all([c.search("a"), c.search("b"), c.search("c")]);
   assert.deepEqual(waits, [3000, 6000]);
+});
+
+test("allows a small burst, then spaces the rest", async () => {
+  const waits: number[] = [];
+  const c = new DddClient({ apiKey: "k", apiBase: "https://ddd", fetchFn: fakeFetch(() => json([])).fn, perMinute: 20, burst: 5, now: () => 0, sleep: async (ms) => void waits.push(ms) });
+  await Promise.all(Array.from({ length: 7 }, (_, i) => c.search(String(i))));
+  assert.deepEqual(waits, [3000, 6000]); // first 5 immediately
 });
 
 test("validates responses and rejects bad item ids", async () => {

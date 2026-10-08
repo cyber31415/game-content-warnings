@@ -29,13 +29,14 @@ Backend: `https://game-content-warnings.onrender.com` (Render free tier).
 |---|---|
 | Request Identity Link | **No** (we never need viewer identities) |
 | Chat Capabilities | **No** |
-| Configuration | **Custom/My Own Service** (the only per-channel setting, a game-match correction, is stored by our EBS) |
-| Required Per Channel Configuration | *(blank: no setup required before activation)* |
-| Allowlist for URL Fetching Domains | `https://game-content-warnings.onrender.com` (add `https://localhost:8080` while testing; not enforced in Local Test) |
+| Configuration | **Extension Configuration Service** (the EBS saves broadcasters' game-match corrections in each channel's developer segment, so they survive the free host wiping its disk) |
+| Broadcaster Writable Channel Segment Version | *(blank: setup is optional; a value here would block activation)* |
+| Developer Writable Channel Segment Version | *(blank)* |
+| Allowlist for URL Fetching Domains | `https://game-content-warnings.onrender.com` |
 | Allowlist for Image Domains | *(blank)* |
 | Allowlist for Media Domains | *(blank)* |
 | Allowlisted Panel URLs | `https://www.doesthedogdie.com/` (attribution link + the current game's DDD page) |
-| Allowlisted Config URLs | `https://www.doesthedogdie.com` (match check + attribution links) |
+| Allowlisted Config URLs | `https://www.doesthedogdie.com/` (match check + attribution links) |
 
 ## 4. Monetization (required to reach Hosted Test)
 | Field | Value |
@@ -68,8 +69,8 @@ Copy into the EBS environment (`.env` locally, host secrets in production):
 | Screenshots (4:3, 1024×768, <10 MB) | `assets/listing/screenshot-1.png`, `-2.png`, `-3.png` |
 | Author Email (private; click the verification mail) | *your email* |
 | Support Email (public) | CyberSpaceman09@proton.me |
-| Privacy Policy URL | `https://game-content-warnings.onrender.com/privacy` (served by the EBS; set `CONTACT_EMAIL`, `OPERATOR_NAME`) |
-| EULA / Terms of Service URL | `https://game-content-warnings.onrender.com/terms` |
+| Privacy Policy URL | `https://cyber31415.github.io/game-content-warnings/privacy.html` (GitHub Pages; rebuild with `scripts/build-legal-pages.ts`) |
+| EULA / Terms of Service URL | `https://cyber31415.github.io/game-content-warnings/terms.html` |
 
 Description:
 

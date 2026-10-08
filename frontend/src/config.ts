@@ -6,14 +6,31 @@ import type {
 import { applyTheme, brandMark, ebs, el, externalLink, HttpError } from "./api.ts";
 import { attribution, disclaimer, unofficialBadge } from "./render.ts";
 
+const LOAD_RETRY_MS = 15_000;
+const LOAD_MAX_RETRIES = 4;
+
 const root = document.getElementById("app")!;
 const ext = window.Twitch?.ext;
+
+// Static shell: the page content is re-rendered, the screen-reader announcer is not.
+const content = el("div");
+const announcer = el("p", { className: "visually-hidden", attrs: { role: "status", "aria-live": "polite" } });
+root.replaceChildren(content, announcer);
 
 let token: string | undefined;
 let state: BroadcasterConfigResponse | undefined;
 let message = "";
+let searchText = "";
 let searchResults: DddSearchResult[] | undefined;
 let busy = false;
+let loadRetries = 0;
+/** Element id to focus after the next render (keeps keyboard users in place). */
+let focusAfterRender: string | null = null;
+
+function announce(text: string): void {
+  message = text;
+  announcer.textContent = text;
+}
 
 /** Icon + sentence so the state reads at a glance (and never by colour alone). */
 function statusLine(w: WarningsResponse): HTMLElement {
@@ -46,45 +63,69 @@ async function load(): Promise<void> {
   if (!token) return;
   try {
     state = await ebs<BroadcasterConfigResponse>(token, "/api/broadcaster/config");
-  } catch (err) {
-    message = `Couldn't load settings: ${err instanceof Error ? err.message : String(err)}`;
+    if (state.current.status !== "error") loadRetries = 0;
+    else if (loadRetries < LOAD_MAX_RETRIES) scheduleReload();
+  } catch {
+    // The backend may be waking up (free hosting sleeps when idle): retry a few times.
+    if (loadRetries < LOAD_MAX_RETRIES) {
+      announce("Still loading… the server may be waking up.");
+      scheduleReload();
+    } else {
+      announce("Couldn't load settings. Reopen this page to try again.");
+    }
   }
   render();
 }
 
+function scheduleReload(): void {
+  loadRetries++;
+  window.setTimeout(load, LOAD_RETRY_MS);
+}
+
+/** The Twitch category the page is showing, which a correction applies to. */
+function currentCategoryId(): string | undefined {
+  const c = state?.current;
+  return c && "category" in c ? c.category.id : undefined;
+}
+
 async function setOverride(dddItemId: number | null): Promise<void> {
-  if (!token || busy) return;
+  const twitchGameId = currentCategoryId();
+  if (!token || busy || !twitchGameId) return;
   busy = true;
-  message = "Saving…";
+  announce("Saving…");
   render();
   try {
-    await ebs(token, "/api/broadcaster/override", { method: "PUT", body: { dddItemId } });
-    message = dddItemId === null ? "Back to automatic matching." : "Saved. Viewers will see the new warnings shortly.";
+    await ebs(token, "/api/broadcaster/override", { method: "PUT", body: { dddItemId, twitchGameId } });
+    announce(dddItemId === null ? "Back to automatic matching." : "Saved. Viewers will see the new warnings shortly.");
     searchResults = undefined;
-    await load();
+    searchText = "";
+    state = await ebs<BroadcasterConfigResponse>(token, "/api/broadcaster/config").catch(() => state);
   } catch (err) {
-    message = err instanceof HttpError ? `Couldn't save: ${err.message}` : "Couldn't save.";
+    announce(err instanceof HttpError ? `Couldn't save: ${err.message}` : "Couldn't save.");
   } finally {
     busy = false;
+    focusAfterRender = "match-heading";
     render();
   }
 }
 
 async function search(q: string): Promise<void> {
   if (!token || q.trim().length < 2) return;
-  message = "Searching…";
+  announce("Searching…");
+  focusAfterRender = "q";
   render();
   try {
     searchResults = await ebs<DddSearchResult[]>(token, `/api/broadcaster/search?q=${encodeURIComponent(q.trim())}`);
-    message = searchResults.length ? "" : "No results.";
+    announce(searchResults.length ? `${searchResults.length} results.` : "No results.");
   } catch (err) {
-    message = err instanceof HttpError ? err.message : "Search failed.";
+    announce(err instanceof HttpError ? err.message : "Search failed.");
   }
+  focusAfterRender = "q";
   render();
 }
 
-function pickButton(id: number, label: string): HTMLButtonElement {
-  const b = el("button", { text: label, attrs: { type: "button" } });
+function pickButton(id: number, label: string, itemName: string): HTMLButtonElement {
+  const b = el("button", { text: label, attrs: { type: "button", "aria-label": `${label}: ${itemName}` } });
   b.disabled = busy;
   b.addEventListener("click", () => void setOverride(id));
   return b;
@@ -101,26 +142,26 @@ function render(): void {
   ];
 
   if (!state) {
-    parts.push(el("p", { className: "state", text: message || "Loading…", attrs: { role: "status" } }));
-    root.replaceChildren(...parts.filter((p): p is Node => p !== null));
+    parts.push(el("p", { className: "state", text: message || "Loading…" }));
+    finish(parts);
     return;
   }
 
   // --- Which game ---
-  const match = el("section", {}, [el("h2", { text: "Game match" }), statusLine(state.current)]);
+  const match = el("section", {}, [el("h2", { text: "Game match", attrs: { id: "match-heading", tabindex: "-1" } }), statusLine(state.current)]);
   if (state.current.status === "no_category") {
     // The search below corrects a match; it can't set the Twitch category, so don't offer it here.
     match.append(
       el("p", { text: "Set your category on Twitch: Stream Manager → Edit Stream Info → Category (you don't need to be live). Then reopen this page." }),
     );
     parts.push(match);
-    parts.push(el("div", { className: "credits" }, [disclaimer(), attribution()]));
-    root.replaceChildren(...parts.filter((p): p is Node => p !== null));
+    finish(parts);
     return;
   }
   if (state.current.status === "ok") match.append(el("p", {}, [externalLink(state.current.ddd.url, "Check it on DoesTheDogDie")]));
   if (state.overrideDddItemId !== null) {
     const reset = el("button", { text: "Use automatic matching", attrs: { type: "button" } });
+    reset.disabled = busy;
     reset.addEventListener("click", () => void setOverride(null));
     match.append(reset);
   }
@@ -128,11 +169,17 @@ function render(): void {
   if (candidates.length) {
     match.append(
       el("h3", { text: "Possible matches" }),
-      el("ul", { className: "choices" }, candidates.map((c) => el("li", {}, [el("span", { text: itemLabel(c.name, c.releaseYear) }), pickButton(c.id, "Use this")]))),
+      el(
+        "ul",
+        { className: "choices" },
+        candidates.map((c) => el("li", {}, [el("span", { text: itemLabel(c.name, c.releaseYear) }), pickButton(c.id, "Use this", itemLabel(c.name, c.releaseYear))])),
+      ),
     );
   }
 
   const input = el("input", { attrs: { type: "search", id: "q", placeholder: "Search DoesTheDogDie", maxlength: "100" } });
+  input.value = searchText;
+  input.addEventListener("input", () => (searchText = input.value));
   const form = el("form", { className: "search" }, [
     el("label", { text: "Wrong game? Search for the right one:", attrs: { for: "q" } }),
     input,
@@ -148,17 +195,14 @@ function render(): void {
       el(
         "ul",
         { className: "choices" },
-        searchResults.map((r) =>
-          el("li", {}, [
-            el("span", { text: itemLabel(r.name, r.releaseYear) + (r.isVideoGame ? "" : " (not a video game)") }),
-            pickButton(r.id, "Use this"),
-          ]),
-        ),
+        searchResults.map((r) => {
+          const label = itemLabel(r.name, r.releaseYear) + (r.isVideoGame ? "" : " (not a video game)");
+          return el("li", {}, [el("span", { text: label }), pickButton(r.id, "Use this", label)]);
+        }),
       ),
     );
   }
   parts.push(match);
-
 
   parts.push(
     el("section", {}, [
@@ -171,9 +215,17 @@ function render(): void {
     ]),
   );
 
-  if (message) parts.push(el("p", { className: "message", text: message, attrs: { role: "status" } }));
+  if (message) parts.push(el("p", { className: "message", text: message }));
+  finish(parts);
+}
+
+function finish(parts: (Node | null)[]): void {
   parts.push(el("div", { className: "credits" }, [disclaimer(), attribution()]));
-  root.replaceChildren(...parts.filter((p): p is Node => p !== null));
+  content.replaceChildren(...parts.filter((p): p is Node => p !== null));
+  if (focusAfterRender) {
+    document.getElementById(focusAfterRender)?.focus();
+    focusAfterRender = null;
+  }
 }
 
 if (!ext) {

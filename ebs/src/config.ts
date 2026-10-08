@@ -40,7 +40,15 @@ const EnvSchema = z.object({
   RENDER_EXTERNAL_URL: z.url().optional().or(z.literal("")),
   EVENTSUB_SECRET: z.string().min(10).max(100).optional().or(z.literal("")),
 
-  // Shown on /privacy and /terms (the Developer Console's required policy URLs).
+  // Where broadcaster corrections live: "twitch" = the channel's developer configuration
+  // segment (durable on hosts with ephemeral disks; needs "Extension Configuration Service"
+  // selected in the Developer Console); "local" = SQLite only (development / Twitch CLI mock).
+  CORRECTIONS_STORE: z.enum(["twitch", "local"]).optional(),
+  // Header carrying the real client IP, set by a proxy the client can't spoof
+  // (e.g. "cf-connecting-ip" behind Cloudflare, as on Render). Used for per-IP rate limiting.
+  CLIENT_IP_HEADER: z.string().regex(/^[a-z0-9-]+$/i).optional().or(z.literal("")),
+
+  // Shown on /privacy and /terms (mirrors of the GitHub Pages policy files).
   EXT_NAME: z.string().min(1).max(40).default("Game Content Warnings (Unofficial)"),
   OPERATOR_NAME: z.string().min(1).default("the developer of this extension"),
   CONTACT_EMAIL: z.email().optional().or(z.literal("")),
@@ -72,6 +80,8 @@ export type Config = {
   allowedOrigins: string[];
   eventsub: { callbackUrl: string; secret: string } | undefined;
   legal: { extName: string; operator: string; contactEmail: string };
+  correctionsStore: "twitch" | "local";
+  clientIpHeader: string | undefined;
 };
 
 export function loadConfig(env: Record<string, string | undefined> = process.env): Config {
@@ -103,5 +113,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
       ? { callbackUrl: e.EVENTSUB_CALLBACK_URL || `${e.RENDER_EXTERNAL_URL!.replace(/\/$/, "")}/eventsub`, secret: e.EVENTSUB_SECRET }
       : undefined,
     legal: { extName: e.EXT_NAME, operator: e.OPERATOR_NAME, contactEmail: e.CONTACT_EMAIL || "(contact email not configured)" },
+    correctionsStore: e.CORRECTIONS_STORE ?? (e.NODE_ENV === "production" ? "twitch" : "local"),
+    clientIpHeader: e.CLIENT_IP_HEADER ? e.CLIENT_IP_HEADER.toLowerCase() : undefined,
   };
 }

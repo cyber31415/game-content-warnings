@@ -28,3 +28,8 @@ current category. Background and decisions: `PROJECT_BRIEF.md`. How to run/deplo
 - DDD terms: show "Powered by DoesTheDogDie.com" (linked) wherever DDD data appears; keep the
   API key server-side; cached DDD data must never be older than 30 days; Free tier is non-commercial.
 - A wrong match is worse than none: prefer `low_confidence` / `no_match`.
+- Broadcaster corrections are per Twitch category and stored in the channel's Twitch developer
+  configuration segment in production (`CORRECTIONS_STORE=twitch`); SQLite is only a cache/mirror,
+  because Render's free disk is wiped whenever the service sleeps.
+- Product rules: Yes-only list, no story spoilers, no descriptions/vote counts, no topic hiding,
+  always labelled "Unofficial" (see README).

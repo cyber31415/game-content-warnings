@@ -25,6 +25,8 @@ export class LiveUpdates {
   private readonly eventsub: { callbackUrl: string; secret: string } | undefined;
   private readonly log: Logger;
   private readonly lastBroadcast = new Map<string, number>();
+  /** Broadcasts run one at a time per channel, so a slow older lookup can't land after a newer one. */
+  private readonly queues = new Map<string, Promise<void>>();
   private readonly pending = new Map<string, Promise<void>>();
 
   constructor(opts: {
@@ -83,15 +85,28 @@ export class LiveUpdates {
   }
 
   /** Recomputes the channel's warnings and broadcasts them (e.g. after an override change). */
-  async broadcastCurrent(channelId: string): Promise<void> {
+  broadcastCurrent(channelId: string): Promise<void> {
+    const prev = this.queues.get(channelId) ?? Promise.resolve();
+    const next = prev.then(() => this.broadcastNow(channelId));
+    const tail = next.catch(() => {}).finally(() => {
+      if (this.queues.get(channelId) === tail) this.queues.delete(channelId);
+    });
+    this.queues.set(channelId, tail);
+    return next;
+  }
+
+  private async broadcastNow(channelId: string): Promise<void> {
+    const wait = (this.lastBroadcast.get(channelId) ?? 0) + MIN_BROADCAST_GAP_MS - Date.now();
+    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+
+    // Computed after any wait, so what we send reflects the latest category.
     const data = await this.warnings.forChannel(channelId);
+    // A transient upstream failure must not blank viewers' panels; they keep what they have.
+    if (data.status === "error") return;
     let message: PubSubMessage = { type: "warnings", data };
     if (Buffer.byteLength(JSON.stringify(message)) > PUBSUB_MAX_BYTES) message = { type: "refresh" };
 
-    const wait = (this.lastBroadcast.get(channelId) ?? 0) + MIN_BROADCAST_GAP_MS - Date.now();
-    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
     this.lastBroadcast.set(channelId, Date.now());
-
     try {
       const jwt = await signEbsJwt(this.extensionSecret, { ownerId: this.ownerId, channelId, pubsubSend: ["broadcast"] });
       await this.helix.sendExtensionBroadcast(jwt, channelId, JSON.stringify(message));

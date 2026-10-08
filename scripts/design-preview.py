@@ -51,6 +51,9 @@ def open_panel(page: Page, theme: str, game: str = "Just Making a CLI") -> None:
     page.route("**/ebs/api/warnings*", relabel)
     page.goto(f"{BASE}/harness/panel.html?channel={CHANNEL}&theme={theme}&game={game}")
     page.locator(".total:visible, .body .state").first.wait_for(timeout=20_000)
+    if game == "Just Making a CLI":
+        # The EBS may still hold another category for a few seconds; wait for the panel's re-check.
+        expect(page.locator(".game")).to_have_text(REAL_NAME, timeout=45_000)
     page.wait_for_timeout(300)
 
 
@@ -71,10 +74,16 @@ def main() -> None:
             page.locator("#search").fill("dog")
             snap(page, f"panel-{theme}-3-search")
             page.locator("#search").fill("")
-            for status, name in (("no_match", "4-no-data"), ("no_category", "5-no-category"), ("error", "6-error")):
+            for status, name in (("no_match", "4-no-data"), ("no_category", "5-no-category")):
                 data = {"status": status, "category": {"id": "1", "name": "Some Indie Game"}} if status == "no_match" else {"status": status}
                 page.evaluate(f"window.__harness.pubsub({{type: 'warnings', data: {json.dumps(data)}}})")
                 snap(page, f"panel-{theme}-{name}")
+            # Error state: the backend is unreachable when the panel loads.
+            err = ctx.new_page()
+            err.route("**/ebs/api/warnings*", lambda route: route.abort())
+            err.goto(f"{BASE}/harness/panel.html?channel={CHANNEL}&theme={theme}")
+            expect(err.locator(".state")).to_contain_text("unavailable", timeout=10_000)
+            snap(err, f"panel-{theme}-6-error")
             ctx.close()
 
         # Phone width (mobile app renders the panel full-width).

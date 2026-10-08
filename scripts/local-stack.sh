@@ -24,7 +24,7 @@ pids=()
 cleanup() { for p in "${pids[@]}"; do kill "$p" 2>/dev/null || true; done; }
 trap cleanup EXIT INT TERM
 
-wait_for() { for _ in $(seq 1 60); do curl -sk "$1" >/dev/null 2>&1 && return 0; sleep 0.5; done; echo "timed out waiting for $1"; exit 1; }
+wait_for() { for _ in $(seq 1 60); do curl -sk "$1" >/dev/null 2>&1 && return 0; sleep 0.5; done; echo "timed out waiting for $1"; return 1; }
 
 mkdir -p "$ROOT/data"
 STATE="${XDG_STATE_HOME:-$HOME/.local/state}/twitch-content-warnings/twitch-cli"

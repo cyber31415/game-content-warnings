@@ -130,7 +130,7 @@ export class HelixClient {
    * Subscribes to channel.update (category/title changes) via webhook. Requires an
    * app access token. Returns the subscription id; on 409 (already subscribed) looks it up.
    */
-  async subscribeChannelUpdate(broadcasterId: string, callback: string, secret: string): Promise<string> {
+  async subscribeChannelUpdate(broadcasterId: string, callback: string, secret: string, retried = false): Promise<string> {
     const res = await this.send("POST", "/eventsub/subscriptions", {
       type: "channel.update",
       version: "2",
@@ -139,18 +139,26 @@ export class HelixClient {
     });
     if (res.status === 409) {
       const existing = await this.findSubscription(broadcasterId);
-      if (existing) return existing;
+      if (existing?.active) return existing.id;
+      if (existing && !retried) {
+        // A failed/revoked subscription blocks a new one: remove it and subscribe again once.
+        await this.deleteSubscription(existing.id);
+        return this.subscribeChannelUpdate(broadcasterId, callback, secret, true);
+      }
     }
     if (!res.ok) throw new Error(`Helix create EventSub subscription failed: HTTP ${res.status}`);
     return dataOf(z.object({ id: z.string() })).parse(await res.json()).data[0]!.id;
   }
 
-  private async findSubscription(broadcasterId: string): Promise<string | undefined> {
+  private async findSubscription(broadcasterId: string): Promise<{ id: string; active: boolean } | undefined> {
     // Twitch allows only one filter per request: filter by user, then by type here.
     const json = await this.get(`/eventsub/subscriptions?user_id=${encodeURIComponent(broadcasterId)}`);
-    const subs = dataOf(z.object({ id: z.string(), type: z.string(), status: z.string() })).parse(json).data;
-    return subs.find((s) => s.type === "channel.update" && (s.status === "enabled" || s.status.startsWith("webhook_callback_verification")))?.id;
+    const subs = dataOf(z.object({ id: z.string(), type: z.string(), status: z.string() })).parse(json).data.filter((s) => s.type === "channel.update");
+    const active = subs.find((s) => s.status === "enabled" || s.status === "webhook_callback_verification_pending");
+    if (active) return { id: active.id, active: true };
+    return subs[0] && { id: subs[0].id, active: false };
   }
+
 
   async deleteSubscription(id: string): Promise<void> {
     const res = await this.send("DELETE", `/eventsub/subscriptions?id=${encodeURIComponent(id)}`);

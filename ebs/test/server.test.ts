@@ -228,6 +228,21 @@ test("on Render, the EventSub callback defaults to the service's public URL", ()
   assert.throws(() => testConfig({ EVENTSUB_SECRET: "a-long-random-secret" }), /no public callback/);
 });
 
+test(".env.example as shipped (blank optional values) loads once the required secrets are filled", async () => {
+  const { readFileSync } = await import("node:fs");
+  const { loadConfig } = await import("../src/config.ts");
+  const env: Record<string, string> = {};
+  for (const line of readFileSync(new URL("../../.env.example", import.meta.url), "utf8").split("\n")) {
+    const m = /^([A-Z_]+)=(.*)$/.exec(line.trim());
+    if (m) env[m[1]!] = m[2]!; // blank values arrive as "" just like Node's --env-file
+  }
+  Object.assign(env, { TWITCH_EXT_CLIENT_ID: "x", TWITCH_EXT_CLIENT_SECRET: "y", TWITCH_EXT_SECRET: Buffer.from("s").toString("base64"), TWITCH_EXT_OWNER_ID: "1", DDD_API_KEY: "k" });
+  const c = loadConfig(env);
+  assert.equal(c.correctionsStore, "local");
+  assert.equal(c.legal.operator, "the developer of this extension");
+  assert.equal(c.eventsub, undefined);
+});
+
 test("config validation", () => {
   assert.throws(() => testConfig({ NODE_ENV: "production" }), /CONTACT_EMAIL/);
   assert.throws(() => testConfig({ TWITCH_EXT_SECRET: "not base64!" }), /base64/);

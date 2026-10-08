@@ -237,3 +237,15 @@ test("a lagging Helix answer right after an EventSub change doesn't revert it", 
   advance(TTL.eventTrust); // after the trust window, Helix is believed again
   assert.equal((await svc.channelGame("12345", undefined, { fresh: true })).name, "The Last of Us Part I");
 });
+
+test("a response built from a nearly 30-day-old stale item isn't cached past 30 days", async () => {
+  const { svc, store, up, setNow, getNow } = service();
+  await svc.forChannel("12345"); // caches item 101
+  const fetchedAt = store.getItem(101)!.fetchedAt;
+  up.dddDown = true;
+  setNow(fetchedAt + TTL.itemMaxStale - 10_000); // 10 s before the item turns 30 days old
+  svc.invalidateResponses();
+  assert.equal((await svc.forChannel("12345")).status, "ok"); // still within 30 days: served stale
+  setNow(getNow() + 11_000); // now past 30 days: the cached response must not be reused
+  assert.equal((await svc.forChannel("12345")).status, "error");
+});

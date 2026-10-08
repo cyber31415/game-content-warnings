@@ -84,7 +84,7 @@ export class WarningsService {
   private readonly flights = new SingleFlight();
   /** `source: "event"` entries came from EventSub; a Helix answer that started earlier must not replace them. */
   private readonly channelGames = new Map<string, { game: Category; at: number; source: "helix" | "event" }>();
-  private readonly responses = new Map<string, { body: WarningsResponse; at: number }>();
+  private readonly responses = new Map<string, { body: WarningsResponse; expires: number }>();
   private readonly touched = new Map<string, number>();
 
   constructor(opts: {
@@ -168,11 +168,15 @@ export class WarningsService {
   async forGame(game: Category, channelOverride: number | null): Promise<WarningsResponse> {
     const key = `${game.id}:${channelOverride ?? ""}`;
     const hit = this.responses.get(key);
-    if (hit && this.now() - hit.at < TTL.response) return hit.body;
+    if (hit && this.now() < hit.expires) return hit.body;
 
     return this.flights.run(`resp:${key}`, async () => {
       const body = await this.buildResponse(game, channelOverride);
-      if (body.status !== "error") this.responses.set(key, { body, at: this.now() });
+      if (body.status !== "error") {
+        // Never cache past the moment the underlying DDD data turns 30 days old.
+        const dataLimit = body.status === "ok" ? Date.parse(body.fetchedAt) + TTL.itemMaxStale : Infinity;
+        this.responses.set(key, { body, expires: Math.min(this.now() + TTL.response, dataLimit) });
+      }
       return body;
     });
   }
@@ -266,8 +270,9 @@ export class WarningsService {
         this.store.putItem(itemId, JSON.stringify(item), now);
         return { item, fetchedAt: now };
       } catch (err) {
-        // Stop a response-cache lifetime early, so an assembled response can't outlive 30 days either.
-        if (cached && age < TTL.itemMaxStale - TTL.response) {
+        // Re-measure after the failed fetch (it can take tens of seconds); responses built from this
+        // copy are cached only until it turns 30 days old (see forGame).
+        if (cached && this.now() - cached.fetchedAt < TTL.itemMaxStale) {
           this.log.warn({ itemId, err: String(err) }, "serving stale DDD item");
           return { item: DddItemDetailSchema.parse(JSON.parse(cached.payloadJson)), fetchedAt: cached.fetchedAt };
         }

@@ -43,14 +43,14 @@ const EnvSchema = z.object({
   // Where broadcaster corrections live: "twitch" = the channel's developer configuration
   // segment (durable on hosts with ephemeral disks; needs "Extension Configuration Service"
   // selected in the Developer Console); "local" = SQLite only (development / Twitch CLI mock).
-  CORRECTIONS_STORE: z.enum(["twitch", "local"]).optional(),
+  CORRECTIONS_STORE: z.enum(["twitch", "local"]).optional().or(z.literal("")),
   // Header carrying the real client IP, set by a proxy the client can't spoof
   // (e.g. "cf-connecting-ip" behind Cloudflare, as on Render). Used for per-IP rate limiting.
   CLIENT_IP_HEADER: z.string().regex(/^[a-z0-9-]+$/i).optional().or(z.literal("")),
 
   // Shown on /privacy and /terms (mirrors of the GitHub Pages policy files).
   EXT_NAME: z.string().min(1).max(40).default("Game Content Warnings (Unofficial)"),
-  OPERATOR_NAME: z.string().min(1).default("the developer of this extension"),
+  OPERATOR_NAME: z.string().optional(), // empty = default below
   CONTACT_EMAIL: z.email().optional().or(z.literal("")),
 }).refine((e) => e.NODE_ENV !== "production" || Boolean(e.CONTACT_EMAIL), {
   message: "CONTACT_EMAIL is required in production (it appears on the privacy and terms pages)",
@@ -112,8 +112,12 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     eventsub: e.EVENTSUB_SECRET
       ? { callbackUrl: e.EVENTSUB_CALLBACK_URL || `${e.RENDER_EXTERNAL_URL!.replace(/\/$/, "")}/eventsub`, secret: e.EVENTSUB_SECRET }
       : undefined,
-    legal: { extName: e.EXT_NAME, operator: e.OPERATOR_NAME, contactEmail: e.CONTACT_EMAIL || "(contact email not configured)" },
-    correctionsStore: e.CORRECTIONS_STORE ?? (e.NODE_ENV === "production" ? "twitch" : "local"),
+    legal: {
+      extName: e.EXT_NAME,
+      operator: e.OPERATOR_NAME?.trim() || "the developer of this extension",
+      contactEmail: e.CONTACT_EMAIL || "(contact email not configured)",
+    },
+    correctionsStore: e.CORRECTIONS_STORE || (e.NODE_ENV === "production" ? "twitch" : "local"),
     clientIpHeader: e.CLIENT_IP_HEADER ? e.CLIENT_IP_HEADER.toLowerCase() : undefined,
   };
 }

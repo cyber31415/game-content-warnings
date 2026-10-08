@@ -139,3 +139,20 @@ test("Helix briefly lagging behind EventSub doesn't revert a new category", asyn
   await settle(sent, 2);
   assert.deepEqual(sent, ["New"]);
 });
+
+test("a failed subscription blocking a new one is replaced, never reported as active", async () => {
+  const tokens = new AppTokenManager({ clientId: "c", clientSecret: "s", tokenUrl: "https://id/token", fetchFn: fakeFetch(() => json({ access_token: "t", expires_in: 3600, token_type: "bearer" })).fn });
+  let posts = 0;
+  const deleted: string[] = [];
+  const f = fakeFetch((url, init) => {
+    if (init?.method === "POST") return ++posts === 1 ? json({ message: "conflict" }, 409) : json({ data: [{ id: "sub-new" }] }, 202);
+    if (init?.method === "DELETE") {
+      deleted.push(new URL(url).searchParams.get("id")!);
+      return new Response(null, { status: 204 });
+    }
+    return json({ data: [{ id: "sub-dead", type: "channel.update", status: "webhook_callback_verification_failed" }] });
+  });
+  const helix = new HelixClient({ clientId: "c", apiBase: "https://api/helix", tokens, fetchFn: f.fn });
+  assert.equal(await helix.subscribeChannelUpdate("42", "https://x/eventsub", "secret-123456"), "sub-new");
+  assert.deepEqual(deleted, ["sub-dead"]);
+});

@@ -107,12 +107,12 @@ WALKTHROUGH
 
 What it does: a panel that lists the content warnings DoesTheDogDie.com voters have confirmed for the channel's current game category. Viewers only read it (no input, no accounts, no viewer data stored). It updates by itself when the broadcaster changes category. It is labelled "Unofficial" and states that it is not affiliated with DoesTheDogDie.com.
 
-Review channel: the extension is installed and activated as a panel on twitch.tv/cyberspaceman_. It is a panel, so the channel does not need to be live. The category will stay on "The Last of Us Part I" during the review so the panel has data to show. If you need the category changed at a set time, email CyberSpaceman09@proton.me.
+Review channel: the extension is installed and activated as a panel on twitch.tv/cyberspaceman_. It is a panel, so the channel does not need to be live. The category will stay on "CONTROL Resonant" during the review so the panel has data to show. If you need the category changed at a set time, email CyberSpaceman09@proton.me.
 
 Viewer panel (below the video on twitch.tv/cyberspaceman_):
 1. The header reads "Content warnings" with an "Unofficial" badge and the number of confirmed warnings.
 2. Warnings are grouped under broad categories, all collapsed at first, each showing a count. Click a category to expand it.
-3. Type in the search box at the top (for example "dog"). Matching warnings from every category appear, including related terms. Clear the box to go back to the categories.
+3. Type in the search box at the top (for example "blood"). Matching warnings from every category appear. Search also understands related terms (for example "dog" also finds "a pet dies"). Clear the box to go back to the categories.
 4. At the bottom: a short disclaimer, an "Updated" date, "Powered by DoesTheDogDie.com", and a link to the current game's DoesTheDogDie page. Both links go to doesthedogdie.com, open in a new tab and are marked with ↗.
 5. When the broadcaster changes category, the panel switches to the new game within seconds without reloading. A non-game category such as "Just Chatting" shows "No content warning data found for this category."
 

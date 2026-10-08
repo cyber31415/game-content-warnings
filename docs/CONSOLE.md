@@ -96,28 +96,41 @@ Upload the zip, then **Move to Hosted Test**. Access tab: the owner account is a
 add test accounts or streamers if others should see it.
 
 ## 8. Submit for Review
-- **Review Channel URL:** your channel (panel-only extensions don't need to be live; offer 9am–5pm PT
-  windows if asked).
-- **Walkthrough Guide** (v1):
+The form has two fields plus a checkbox. Before submitting, activate the extension as a panel on the
+review channel: the version under review must stay activated there for the whole review.
+
+- **Name of Channel for Review:** `https://www.twitch.tv/cyberspaceman_`
+- **Walkthrough Guide and Change Log** (one box, v0.1.0 as submitted):
 
 ```
-What it does: a panel listing DoesTheDogDie.com content warnings confirmed for the channel's current game category.
+WALKTHROUGH
 
-Testing steps
-1. Activate the extension as a panel on the review channel (no configuration needed).
-2. Set the channel category to a game, e.g. "The Last of Us". The panel shows categories with counts; tap one to expand. Use the search box ("dog").
-3. Change the category to another game: the panel updates within seconds without reloading.
-4. Set the category to "Just Chatting": the panel says no data was found.
-5. Configuration page (broadcaster): shows the matched game; "Wrong game? Search" lets the broadcaster pick a different DoesTheDogDie entry.
+What it does: a panel that lists the content warnings DoesTheDogDie.com voters have confirmed for the channel's current game category. Viewers only read it (no input, no accounts, no viewer data stored). It updates by itself when the broadcaster changes category. It is labelled "Unofficial" and states that it is not affiliated with DoesTheDogDie.com.
 
-Note: the backend runs on a free host that sleeps after 15 minutes without traffic. The first panel load after a quiet period can take up to about a minute (the panel shows a loading state and retries automatically); after that it responds instantly.
+Review channel: the extension is installed and activated as a panel on twitch.tv/cyberspaceman_. It is a panel, so the channel does not need to be live. The category will stay on "The Last of Us Part I" during the review so the panel has data to show. If you need the category changed at a set time, email CyberSpaceman09@proton.me.
 
-Backend: https://game-content-warnings.onrender.com (Node.js/TypeScript). Endpoints fetched by the frontend: https://game-content-warnings.onrender.com/api/warnings, https://game-content-warnings.onrender.com/api/topics, https://game-content-warnings.onrender.com/api/broadcaster/*. All are listed in "Allowlist for URL Fetching Domains". The EBS calls the Twitch API (channel info, EventSub channel.update, Extension PubSub, Extension Configuration Service: the per-channel developer segment stores broadcasters' game-match corrections) and the DoesTheDogDie API.
-Frontend: unminified TypeScript compiled to plain ES modules, no third-party libraries; the Twitch helper is the first script on every page.
-Off-site links (all marked with ↗, all to doesthedogdie.com): "Powered by DoesTheDogDie.com" (attribution required by the DDD API terms), the current game's DDD page at the bottom of the panel, and on the config page a link to check the matched game. The panel labels itself "Unofficial" and states it is not affiliated with DoesTheDogDie.com.
+Viewer panel (below the video on twitch.tv/cyberspaceman_):
+1. The header reads "Content warnings" with an "Unofficial" badge and the number of confirmed warnings.
+2. Warnings are grouped under broad categories, all collapsed at first, each showing a count. Click a category to expand it.
+3. Type in the search box at the top (for example "dog"). Matching warnings from every category appear, including related terms. Clear the box to go back to the categories.
+4. At the bottom: a short disclaimer, an "Updated" date, "Powered by DoesTheDogDie.com", and a link to the current game's DoesTheDogDie page. Both links go to doesthedogdie.com, open in a new tab and are marked with ↗.
+5. When the broadcaster changes category, the panel switches to the new game within seconds without reloading. A non-game category such as "Just Chatting" shows "No content warning data found for this category."
+
+Broadcaster configuration page (Extensions manager > Configure), optional:
+6. Shows which DoesTheDogDie entry was matched to the current category, with a link to check it.
+7. "Wrong game? Search for the right one" lets the broadcaster pick a different entry ("Use this"). "Use automatic matching" undoes that. There are no other settings. Viewers always see every confirmed warning, unedited.
+
+Note: the backend runs on a free host that sleeps after 15 minutes without traffic. The first load after a quiet period can take up to about a minute. The panel shows a loading state and retries by itself, and after that it responds immediately.
+
+Technical details:
+- Backend: https://game-content-warnings.onrender.com (Node.js/TypeScript, open source at https://github.com/cyber31415/game-content-warnings). The frontend fetches only /api/warnings, /api/topics and /api/broadcaster/* on that domain, which is in "Allowlist for URL Fetching Domains".
+- The backend uses the Twitch API (channel info, EventSub channel.update, Extension PubSub, and the Extension Configuration Service developer segment, which stores broadcasters' game-match corrections) and the DoesTheDogDie API.
+- Frontend: unminified TypeScript compiled to plain ES modules, no third-party libraries. The Twitch helper is the first script on every page.
+- The Streamer Allowlist is intentionally limited to two channels for a small first release.
+
+CHANGE LOG
+0.1.0: initial release.
 ```
-
-- **Change Log:** `0.1.0: initial release.`
 
 ## Gotchas
 - Only one version can be in Review, and an approved-but-unreleased version also blocks the slot.

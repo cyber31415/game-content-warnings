@@ -1,5 +1,6 @@
-// Operator tool: pin a Twitch category to a DDD item for every channel (or remove the pin),
-// and list categories the matcher couldn't resolve.
+// Operator tool: list categories the matcher couldn't resolve, and try out a pin in one database.
+// Pins set here are temporary: the EBS resets manual pins to ebs/src/match/manual-mappings.ts at
+// every start, so put permanent pins in that file.
 //
 //   node --env-file=.env scripts/map-game.ts list
 //   node --env-file=.env scripts/map-game.ts set <twitchGameId> <dddItemId> "<Twitch name>"

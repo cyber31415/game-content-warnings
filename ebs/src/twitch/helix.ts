@@ -138,7 +138,7 @@ export class HelixClient {
       transport: { method: "webhook", callback, secret },
     });
     if (res.status === 409) {
-      const existing = await this.findSubscription(broadcasterId);
+      const existing = await this.findSubscription(broadcasterId, callback);
       if (existing?.active) return existing.id;
       if (existing && !retried) {
         // A failed/revoked subscription blocks a new one: remove it and subscribe again once.
@@ -150,14 +150,25 @@ export class HelixClient {
     return dataOf(z.object({ id: z.string() })).parse(await res.json()).data[0]!.id;
   }
 
-  private async findSubscription(broadcasterId: string): Promise<{ id: string; active: boolean } | undefined> {
+  /**
+   * The channel's existing channel.update subscription. It only counts as active if it is enabled
+   * or pending AND points at our current callback (an old URL, e.g. after moving hosts, is dead).
+   */
+  private async findSubscription(broadcasterId: string, callback: string): Promise<{ id: string; active: boolean } | undefined> {
     // Twitch allows only one filter per request: filter by user, then by type here.
     const json = await this.get(`/eventsub/subscriptions?user_id=${encodeURIComponent(broadcasterId)}`);
-    const subs = dataOf(z.object({ id: z.string(), type: z.string(), status: z.string() })).parse(json).data.filter((s) => s.type === "channel.update");
-    const active = subs.find((s) => s.status === "enabled" || s.status === "webhook_callback_verification_pending");
+    const subs = dataOf(
+      z.object({ id: z.string(), type: z.string(), status: z.string(), transport: z.object({ callback: z.string().optional() }).optional() }),
+    )
+      .parse(json)
+      .data.filter((s) => s.type === "channel.update");
+    const active = subs.find(
+      (s) => (s.status === "enabled" || s.status === "webhook_callback_verification_pending") && s.transport?.callback === callback,
+    );
     if (active) return { id: active.id, active: true };
     return subs[0] && { id: subs[0].id, active: false };
   }
+
 
 
   async deleteSubscription(id: string): Promise<void> {

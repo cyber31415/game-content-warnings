@@ -150,6 +150,14 @@ export class Store {
       .run(twitchGameId, twitchName, dddItemId, now);
   }
 
+  /** Keeps manual mappings exactly in sync with a list (removes manual rows not in it). */
+  syncManualMatches(pins: { twitchGameId: string; twitchName: string; dddItemId: number }[], now = Date.now()): void {
+    const keep = new Set(pins.map((p) => p.twitchGameId));
+    const rows = this.db.prepare("SELECT twitch_game_id FROM game_map WHERE source = 'manual'").all() as { twitch_game_id: string }[];
+    for (const r of rows) if (!keep.has(String(r.twitch_game_id))) this.putManualMatch(String(r.twitch_game_id), "", null);
+    for (const p of pins) this.putManualMatch(p.twitchGameId, p.twitchName, p.dddItemId, now);
+  }
+
   listUnresolved(limit = 100): GameMapRow[] {
     const ids = this.db
       .prepare("SELECT twitch_game_id FROM game_map WHERE status != 'matched' ORDER BY seen_count DESC LIMIT ?")

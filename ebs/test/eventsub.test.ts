@@ -91,7 +91,7 @@ test("an existing subscription is found after a 409 by filtering on user only", 
   const f = fakeFetch((url, init) => {
     if (init?.method === "POST") return json({ message: "conflict" }, 409);
     assert.ok(!url.includes("type="), "must not combine filters");
-    return json({ data: [{ id: "other", type: "stream.online", status: "enabled" }, { id: "sub-9", type: "channel.update", status: "enabled" }] });
+    return json({ data: [{ id: "other", type: "stream.online", status: "enabled" }, { id: "sub-9", type: "channel.update", status: "enabled", transport: { callback: "https://x/eventsub" } }] });
   });
   const helix = new HelixClient({ clientId: "c", apiBase: "https://api/helix", tokens, fetchFn: f.fn });
   assert.equal(await helix.subscribeChannelUpdate("42", "https://x/eventsub", "secret-123456"), "sub-9");
@@ -164,4 +164,18 @@ test("a delayed re-check from an older notification doesn't override a newer one
   await live.onCategoryChange("1", { id: "D", name: "D" }); // newer notification before B's checks finish
   await settle(sent, 3);
   assert.ok(!sent.includes("C"), `never broadcast the stale lookup: ${sent.join(",")}`);
+});
+
+test("an enabled subscription pointing at an old callback URL is replaced", async () => {
+  const tokens = new AppTokenManager({ clientId: "c", clientSecret: "s", tokenUrl: "https://id/token", fetchFn: fakeFetch(() => json({ access_token: "t", expires_in: 3600, token_type: "bearer" })).fn });
+  let posts = 0;
+  const deleted: string[] = [];
+  const f = fakeFetch((url, init) => {
+    if (init?.method === "POST") return ++posts === 1 ? json({ message: "conflict" }, 409) : json({ data: [{ id: "sub-new" }] }, 202);
+    if (init?.method === "DELETE") return (deleted.push(new URL(url).searchParams.get("id")!), new Response(null, { status: 204 }));
+    return json({ data: [{ id: "sub-old-host", type: "channel.update", status: "enabled", transport: { callback: "https://old-host/eventsub" } }] });
+  });
+  const helix = new HelixClient({ clientId: "c", apiBase: "https://api/helix", tokens, fetchFn: f.fn });
+  assert.equal(await helix.subscribeChannelUpdate("42", "https://new-host/eventsub", "secret-123456"), "sub-new");
+  assert.deepEqual(deleted, ["sub-old-host"]);
 });

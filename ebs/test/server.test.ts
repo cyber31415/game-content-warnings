@@ -253,6 +253,23 @@ test(".env.example as shipped (blank optional values) loads once the required se
   assert.equal(c.eventsub, undefined);
 });
 
+test("blank values for variables with defaults mean 'use the default'", () => {
+  const c = testConfig({ PORT: "", EXT_NAME: "", NODE_ENV: "", HOST: "", DATABASE_PATH: "", TWITCH_API_BASE: "", TWITCH_TOKEN_URL: "", DDD_API_BASE: "" });
+  assert.equal(c.port, 8081);
+  assert.equal(c.host, "127.0.0.1");
+  assert.equal(c.legal.extName, "Game Content Warnings (Unofficial)");
+  assert.equal(c.database.path, "./data/cache.sqlite");
+  assert.throws(() => testConfig({ DDD_API_KEY: "" }), /DDD_API_KEY/); // required values still required
+});
+
+test("manual pins removed from the code list are removed from the database at startup", async () => {
+  const d = testDeps();
+  d.store.putManualMatch("999", "Old Pin", 1234);
+  await buildServer(d);
+  assert.equal(d.store.getGameMap("999"), undefined);
+  assert.equal(d.store.getGameMap("778386489")?.source, "manual");
+});
+
 test("config validation", () => {
   assert.throws(() => testConfig({ NODE_ENV: "production" }), /CONTACT_EMAIL/);
   assert.throws(() => testConfig({ TWITCH_EXT_SECRET: "not base64!" }), /base64/);

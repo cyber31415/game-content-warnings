@@ -85,7 +85,10 @@ export type Config = {
 };
 
 export function loadConfig(env: Record<string, string | undefined> = process.env): Config {
-  const parsed = EnvSchema.safeParse(env);
+  // A blank value (e.g. `PORT=` in .env, which Node's --env-file loads as "") means "not set",
+  // so defaults apply and required values report as missing.
+  const cleaned = Object.fromEntries(Object.entries(env).filter(([, v]) => v !== undefined && v.trim() !== ""));
+  const parsed = EnvSchema.safeParse(cleaned);
   if (!parsed.success) {
     const problems = parsed.error.issues.map((i) => `  ${i.path.join(".")}: ${i.message}`).join("\n");
     throw new Error(`Invalid environment configuration:\n${problems}`);

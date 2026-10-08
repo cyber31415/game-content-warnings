@@ -36,7 +36,8 @@ export async function buildServer(deps: Deps): Promise<FastifyInstance> {
           },
   });
 
-  for (const m of MANUAL_MAPPINGS) store.putManualMatch(m.twitchGameId, m.twitchName, m.dddItemId);
+  // The code list is authoritative: pins removed from it are removed from the database too.
+  store.syncManualMatches(MANUAL_MAPPINGS);
   const topics = new TopicCatalog({ store, ddd, log: app.log });
   const corrections = new Corrections({
     store,

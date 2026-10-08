@@ -76,7 +76,9 @@ on your channel, activate it as a panel, and switch categories to watch it updat
 **Render free tier (current setup):** `render.yaml` describes the service. In Render: **New → Blueprint**,
 pick this repo, and paste the five secrets it asks for (from your local `.env`). Render builds the
 Dockerfile, gives it `https://<name>.onrender.com`, generates `EVENTSUB_SECRET`, and points the EventSub
-callback at `$RENDER_EXTERNAL_URL/eventsub` automatically. Free services sleep after 15 minutes idle
+callback at `$RENDER_EXTERNAL_URL/eventsub` automatically. If you ever rotate `EVENTSUB_SECRET` on the
+same URL, delete the extension's EventSub subscriptions (Twitch can't tell us the secret changed);
+a new URL is detected and resubscribed automatically. Free services sleep after 15 minutes idle
 (first request then takes ~30–60 s) and start with an empty cache; broadcaster corrections survive
 because they're stored in Twitch's configuration service (`CORRECTIONS_STORE=twitch`).
 
@@ -106,8 +108,9 @@ appears in the extension directory for any streamer to activate.
 
 ## Operations
 - `data/match-audit-*.md` and the `game_map` table (`status != 'matched'`) show categories that
-  need a manual mapping. Permanent pins belong in `ebs/src/match/manual-mappings.ts` (applied at
-  every start, so they reach any server); `node --env-file=.env scripts/map-game.ts list | set | clear`
-  inspects or edits one database directly.
+  need a manual mapping. Permanent pins belong in `ebs/src/match/manual-mappings.ts` (the EBS syncs its
+  manual pins to that list at every start, so removals take effect too);
+  `node --env-file=.env scripts/map-game.ts list | set | clear` inspects or tries a pin in one database
+  until the next restart.
 - Watch the DDD quota: `GET /health` reports `dddQuota` (from DDD's rate-limit headers). 429s open a local
   circuit until `Retry-After`; viewers keep seeing cached data meanwhile.

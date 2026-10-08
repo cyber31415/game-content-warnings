@@ -108,14 +108,12 @@ export class DddClient {
 
   /** Rate-limited GET returning unvalidated JSON (also used by fixture capture scripts). */
   async getRaw(path: string): Promise<unknown> {
-    const wait = this.limiter.reserve(this.maxQueueWaitMs);
-    if (wait > 0) await this.sleep(wait);
-
-    const res = await this.fetchFn(`${this.apiBase}${path}`, {
-      headers: { "X-API-KEY": this.apiKey, Accept: "application/json", "User-Agent": DDD_USER_AGENT },
-      signal: AbortSignal.timeout(10_000),
-    });
-    this.readBudget(res.headers);
+    let res = await this.send(path);
+    // DDD occasionally answers 502/503/504; one quick retry usually succeeds.
+    if (res.status >= 502 && res.status <= 504) {
+      await this.sleep(1_000);
+      res = await this.send(path);
+    }
 
     if (!res.ok) {
       const retryAfter = Number(res.headers.get("retry-after")) || undefined;
@@ -125,6 +123,17 @@ export class DddClient {
       throw new DddError(`DDD ${path.split("?")[0]} failed: ${code}`, { code, status: res.status, retryAfterSeconds: retryAfter });
     }
     return res.json();
+  }
+
+  private async send(path: string): Promise<Response> {
+    const wait = this.limiter.reserve(this.maxQueueWaitMs);
+    if (wait > 0) await this.sleep(wait);
+    const res = await this.fetchFn(`${this.apiBase}${path}`, {
+      headers: { "X-API-KEY": this.apiKey, Accept: "application/json", "User-Agent": DDD_USER_AGENT },
+      signal: AbortSignal.timeout(10_000),
+    });
+    this.readBudget(res.headers);
+    return res;
   }
 
   private readBudget(h: Headers): void {

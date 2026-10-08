@@ -45,3 +45,18 @@ test("validates responses and rejects bad item ids", async () => {
   await assert.rejects(c.getItem(5));
   await assert.rejects(c.getItem(-1), RangeError);
 });
+
+test("retries once on a transient 502 from DDD", async () => {
+  let n = 0;
+  const f = fakeFetch(() => (++n === 1 ? json({ error: "bad_gateway" }, 502) : json([{ id: 1, name: "Celeste" }])));
+  const c = new DddClient({ apiKey: "k", apiBase: "https://ddd", fetchFn: f.fn, sleep: async () => {} });
+  assert.equal((await c.search("celeste"))[0]!.name, "Celeste");
+  assert.equal(f.calls.length, 2);
+});
+
+test("gives up after the retry if DDD is still failing", async () => {
+  const f = fakeFetch(() => json({ error: "bad_gateway" }, 502));
+  const c = new DddClient({ apiKey: "k", apiBase: "https://ddd", fetchFn: f.fn, sleep: async () => {} });
+  await assert.rejects(c.search("x"), (e: DddError) => e.status === 502);
+  assert.equal(f.calls.length, 2);
+});

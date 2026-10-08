@@ -33,9 +33,11 @@ const EnvSchema = z.object({
   // Comma-separated. Defaults to the extension's own frontend origin.
   ALLOWED_ORIGINS: z.string().optional(),
 
-  // Live category updates (EventSub webhook -> Extension PubSub). Both or neither.
-  // The callback must be public HTTPS on port 443, e.g. https://ebs.example.com/eventsub
+  // Live category updates (EventSub webhook -> Extension PubSub). Enabled when EVENTSUB_SECRET
+  // is set. The callback must be public HTTPS on port 443, e.g. https://ebs.example.com/eventsub;
+  // on Render it defaults to $RENDER_EXTERNAL_URL/eventsub.
   EVENTSUB_CALLBACK_URL: z.url().optional().or(z.literal("")),
+  RENDER_EXTERNAL_URL: z.url().optional().or(z.literal("")),
   EVENTSUB_SECRET: z.string().min(10).max(100).optional().or(z.literal("")),
 
   // Shown on /privacy and /terms (the Developer Console's required policy URLs).
@@ -45,7 +47,10 @@ const EnvSchema = z.object({
 }).refine((e) => e.NODE_ENV !== "production" || Boolean(e.CONTACT_EMAIL), {
   message: "CONTACT_EMAIL is required in production (it appears on the privacy and terms pages)",
   path: ["CONTACT_EMAIL"],
-}).refine((e) => Boolean(e.EVENTSUB_CALLBACK_URL) === Boolean(e.EVENTSUB_SECRET), {
+}).refine((e) => Boolean(e.EVENTSUB_CALLBACK_URL || e.RENDER_EXTERNAL_URL) || !e.EVENTSUB_SECRET, {
+  message: "EVENTSUB_SECRET is set but there's no public callback (set EVENTSUB_CALLBACK_URL)",
+  path: ["EVENTSUB_CALLBACK_URL"],
+}).refine((e) => !e.EVENTSUB_CALLBACK_URL || Boolean(e.EVENTSUB_SECRET), {
   message: "set both EVENTSUB_CALLBACK_URL and EVENTSUB_SECRET, or neither",
   path: ["EVENTSUB_SECRET"],
 });
@@ -94,7 +99,9 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     ddd: { apiKey: e.DDD_API_KEY, apiBase: e.DDD_API_BASE.replace(/\/$/, "") },
     database: { path: e.DATABASE_PATH, vfs: e.DATABASE_VFS || undefined },
     allowedOrigins,
-    eventsub: e.EVENTSUB_CALLBACK_URL && e.EVENTSUB_SECRET ? { callbackUrl: e.EVENTSUB_CALLBACK_URL, secret: e.EVENTSUB_SECRET } : undefined,
+    eventsub: e.EVENTSUB_SECRET
+      ? { callbackUrl: e.EVENTSUB_CALLBACK_URL || `${e.RENDER_EXTERNAL_URL!.replace(/\/$/, "")}/eventsub`, secret: e.EVENTSUB_SECRET }
+      : undefined,
     legal: { extName: e.EXT_NAME, operator: e.OPERATOR_NAME, contactEmail: e.CONTACT_EMAIL || "(contact email not configured)" },
   };
 }

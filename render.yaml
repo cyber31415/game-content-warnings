@@ -1,0 +1,37 @@
+# Render Blueprint: free web service running the EBS from the Dockerfile.
+# Render > New > Blueprint > pick this repo. You'll be asked for the sync:false values.
+# Free tier: sleeps after 15 min idle (first request then takes ~30-60 s); the disk is
+# wiped on sleep/redeploy, so the SQLite cache simply refills from DDD.
+services:
+  - type: web
+    name: game-content-warnings
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_PATH
+        value: /data/cache.sqlite
+      - key: EXT_NAME
+        value: Game Content Warnings (Unofficial)
+      - key: OPERATOR_NAME
+        value: cyber31415
+      - key: CONTACT_EMAIL
+        value: CyberSpaceman09@proton.me
+      # Live category updates; the callback defaults to $RENDER_EXTERNAL_URL/eventsub.
+      - key: EVENTSUB_SECRET
+        generateValue: true
+      # Secrets: entered in the Render dashboard, never committed.
+      - key: TWITCH_EXT_CLIENT_ID
+        sync: false
+      - key: TWITCH_EXT_CLIENT_SECRET
+        sync: false
+      - key: TWITCH_EXT_SECRET
+        sync: false
+      - key: TWITCH_EXT_OWNER_ID
+        sync: false
+      - key: DDD_API_KEY
+        sync: false

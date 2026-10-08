@@ -174,6 +174,12 @@ test("curated manual mappings are applied at startup", async () => {
   assert.equal(row?.dddItemId, 14438);
 });
 
+test("on Render, the EventSub callback defaults to the service's public URL", () => {
+  const c = testConfig({ EVENTSUB_SECRET: "a-long-random-secret", RENDER_EXTERNAL_URL: "https://cw.onrender.com" });
+  assert.deepEqual(c.eventsub, { callbackUrl: "https://cw.onrender.com/eventsub", secret: "a-long-random-secret" });
+  assert.throws(() => testConfig({ EVENTSUB_SECRET: "a-long-random-secret" }), /no public callback/);
+});
+
 test("config validation", () => {
   assert.throws(() => testConfig({ NODE_ENV: "production" }), /CONTACT_EMAIL/);
   assert.throws(() => testConfig({ TWITCH_EXT_SECRET: "not base64!" }), /base64/);

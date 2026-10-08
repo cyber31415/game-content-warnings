@@ -64,6 +64,14 @@ In the console, open the version's **Status** page → **View on Twitch and Inst
 on your channel, activate it as a panel, and switch categories to watch it update.
 
 ## 5. Deploy the EBS (needed for Hosted Test, review and live updates)
+
+**Render free tier (current setup):** `render.yaml` describes the service. In Render: **New → Blueprint**,
+pick this repo, and paste the five secrets it asks for (from your local `.env`). Render builds the
+Dockerfile, gives it `https://<name>.onrender.com`, generates `EVENTSUB_SECRET`, and points the EventSub
+callback at `$RENDER_EXTERNAL_URL/eventsub` automatically. Free services sleep after 15 minutes idle
+(first request then takes ~30–60 s) and start with an empty cache.
+
+**Any other host:**
 Any host with HTTPS on port 443 and a persistent disk for SQLite. The `Dockerfile` runs the EBS;
 mount a volume at `/data` and set the variables from `.env.example` with:
 - `NODE_ENV=production`, no `DATABASE_VFS`, no localhost in `ALLOWED_ORIGINS` (leave it empty)

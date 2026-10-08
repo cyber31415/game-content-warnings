@@ -110,6 +110,8 @@ Testing steps
 4. Set the category to "Just Chatting": the panel says no data was found.
 5. Configuration page (broadcaster): shows the matched game; "Wrong game? Search" lets the broadcaster pick a different DoesTheDogDie entry.
 
+Note: the backend runs on a free host that sleeps after 15 minutes without traffic. The first panel load after a quiet period can take up to about a minute (the panel shows a loading state and retries automatically); after that it responds instantly.
+
 Backend: https://game-content-warnings.onrender.com (Node.js/TypeScript). Endpoints fetched by the frontend: https://game-content-warnings.onrender.com/api/warnings, https://game-content-warnings.onrender.com/api/topics, https://game-content-warnings.onrender.com/api/broadcaster/*. All are listed in "Allowlist for URL Fetching Domains". The EBS calls the Twitch API (channel info, EventSub channel.update, Extension PubSub, Extension Configuration Service: the per-channel developer segment stores broadcasters' game-match corrections) and the DoesTheDogDie API.
 Frontend: unminified TypeScript compiled to plain ES modules, no third-party libraries; the Twitch helper is the first script on every page.
 Off-site links (all marked with ↗, all to doesthedogdie.com): "Powered by DoesTheDogDie.com" (attribution required by the DDD API terms), the current game's DDD page at the bottom of the panel, and on the config page a link to check the matched game. The panel labels itself "Unofficial" and states it is not affiliated with DoesTheDogDie.com.

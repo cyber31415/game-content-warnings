@@ -4,7 +4,7 @@ Field-by-field values for https://dev.twitch.tv/console/extensions. Field names 
 documents them (labels can drift slightly). Requirements checked 2026-10-07; character limits
 marked * come from third-party guides, so trust the console's own counter.
 
-Placeholders: `<EBS>` = your deployed backend origin, e.g. `https://cw.example.com`.
+Backend: `https://game-content-warnings.onrender.com` (Render free tier).
 
 ## 1. Create Extension
 | Field | Value |
@@ -31,7 +31,7 @@ Placeholders: `<EBS>` = your deployed backend origin, e.g. `https://cw.example.c
 | Chat Capabilities | **No** |
 | Configuration | **Custom/My Own Service** (the only per-channel setting, a game-match correction, is stored by our EBS) |
 | Required Per Channel Configuration | *(blank: no setup required before activation)* |
-| Allowlist for URL Fetching Domains | `<EBS>` (add `https://localhost:8080` while testing; not enforced in Local Test) |
+| Allowlist for URL Fetching Domains | `https://game-content-warnings.onrender.com` (add `https://localhost:8080` while testing; not enforced in Local Test) |
 | Allowlist for Image Domains | *(blank)* |
 | Allowlist for Media Domains | *(blank)* |
 | Allowlisted Panel URLs | `https://www.doesthedogdie.com/` (attribution link + the current game's DDD page) |
@@ -68,8 +68,8 @@ Copy into the EBS environment (`.env` locally, host secrets in production):
 | Screenshots (4:3, 1024×768, <10 MB) | `assets/listing/screenshot-1.png`, `-2.png`, `-3.png` |
 | Author Email (private; click the verification mail) | *your email* |
 | Support Email (public) | CyberSpaceman09@proton.me |
-| Privacy Policy URL | `<EBS>/privacy` (served by the EBS; set `CONTACT_EMAIL`, `OPERATOR_NAME`) |
-| EULA / Terms of Service URL | `<EBS>/terms` |
+| Privacy Policy URL | `https://game-content-warnings.onrender.com/privacy` (served by the EBS; set `CONTACT_EMAIL`, `OPERATOR_NAME`) |
+| EULA / Terms of Service URL | `https://game-content-warnings.onrender.com/terms` |
 
 Description:
 
@@ -89,7 +89,7 @@ The extension stores no viewer information. Powered by DoesTheDogDie.com.
 
 ## 7. Files (Hosted Test)
 ```fish
-EBS_URL=<EBS> node scripts/build-frontend.ts --zip     # -> dist/frontend-0.1.0.zip (~12 KB)
+EBS_URL=https://game-content-warnings.onrender.com node scripts/build-frontend.ts --zip     # -> dist/frontend-0.1.0.zip (~12 KB)
 ```
 Upload the zip, then **Move to Hosted Test**. Access tab: the owner account is allowed by default;
 add test accounts or streamers if others should see it.
@@ -109,7 +109,7 @@ Testing steps
 4. Set the category to "Just Chatting": the panel says no data was found.
 5. Configuration page (broadcaster): shows the matched game; "Wrong game? Search" lets the broadcaster pick a different DoesTheDogDie entry.
 
-Backend: <EBS> (Node.js/TypeScript). Endpoints fetched by the frontend: <EBS>/api/warnings, <EBS>/api/topics, <EBS>/api/broadcaster/*. All are listed in "Allowlist for URL Fetching Domains". The EBS calls the Twitch API (channel info, EventSub channel.update, Extension PubSub) and the DoesTheDogDie API.
+Backend: https://game-content-warnings.onrender.com (Node.js/TypeScript). Endpoints fetched by the frontend: https://game-content-warnings.onrender.com/api/warnings, https://game-content-warnings.onrender.com/api/topics, https://game-content-warnings.onrender.com/api/broadcaster/*. All are listed in "Allowlist for URL Fetching Domains". The EBS calls the Twitch API (channel info, EventSub channel.update, Extension PubSub) and the DoesTheDogDie API.
 Frontend: unminified TypeScript compiled to plain ES modules, no third-party libraries; the Twitch helper is the first script on every page.
 Off-site links (all marked with ↗, all to doesthedogdie.com): "Powered by DoesTheDogDie.com" (attribution required by the DDD API terms), the current game's DDD page at the bottom of the panel, and on the config page a link to check the matched game. The panel labels itself "Unofficial" and states it is not affiliated with DoesTheDogDie.com.
 ```

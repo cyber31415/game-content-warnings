@@ -96,9 +96,9 @@ def main() -> int:
         expect(page.locator("details.group[open]")).to_have_count(0)
         names = [g.inner_text().split("\n")[0] for g in groups.locator("summary .group-name").all()]
         assert names[-1] == "Other" or "Other" not in names, names
-        expect(page.locator(".attribution a")).to_contain_text("Powered by DoesTheDogDie.com")
-        expect(page.locator(".attribution a .offsite")).to_have_count(1)
-        check(f"ok state: search box on top, {n_groups} collapsed categories with counts, attribution with off-site marker")
+        expect(page.locator(".attribution")).to_have_text("Powered by DoesTheDogDie.com")
+        expect(page.locator("a")).to_have_count(0)  # Twitch guideline 4.5: no off-site links
+        check(f"ok state: search box on top, {n_groups} collapsed categories with counts, plain-text attribution, no links")
         shot(page, "01-panel-collapsed")
 
         page.locator("details.group > summary", has_text="Animals").click()
@@ -110,17 +110,13 @@ def main() -> int:
         shot(page, "02-panel-one-open")
 
         expect(page.locator("li.topic details, li.topic a, .desc, .votes")).to_have_count(0)
-        expect(page.locator("footer a")).to_have_count(2)  # attribution + this game's DDD page
         expect(page.locator(".freshness")).to_have_text("Updated today")
         check("items show just the trigger; freshness line")
 
         expect(page.locator("h1 .badge")).to_have_text("Unofficial")
         expect(page.locator(".disclaimer")).to_have_text("Unofficial: not affiliated with or endorsed by DoesTheDogDie.com.")
-        last_link = page.locator("footer a").last
-        expect(last_link).to_contain_text("Just Making a CLI on DoesTheDogDie")
-        expect(last_link).to_have_attribute("href", "https://www.doesthedogdie.com/media/9001")
-        expect(last_link).to_have_attribute("target", "_blank")
-        check("'Unofficial' badge + non-affiliation line; game's DDD page linked at the very bottom (new tab, off-site marker)")
+        expect(page.locator(".credits p").last).to_have_text("Powered by DoesTheDogDie.com")
+        check("'Unofficial' badge + non-affiliation line; attribution last in the footer")
 
         page.get_by_role("button", name="Expand all").click()
         expect(page.locator("details.group[open]")).to_have_count(n_groups)
@@ -204,7 +200,9 @@ def main() -> int:
         cfg.locator("ul.choices li", has_text="2022").get_by_role("button", name="Use this").click()
         expect(cfg.locator(".message")).to_contain_text("Saved")
         expect(cfg.locator("section").first).to_contain_text("Using your choice")
-        check("broadcaster override saved through EBS")
+        expect(cfg.locator("a")).to_have_count(0)  # Twitch guideline 4.5: no off-site links
+        expect(cfg.locator(".attribution")).to_have_text("Powered by DoesTheDogDie.com")
+        check("broadcaster override saved through EBS; config page has plain-text attribution, no links")
         cfg.get_by_label("Wrong game? Search for the right one:").fill("just making")
         cfg.get_by_role("button", name="Search").click()
         expect(cfg.locator("ul.choices li", has_text="(not a video game)")).to_have_count(1)

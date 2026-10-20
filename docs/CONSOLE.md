@@ -11,7 +11,7 @@ Backend: `https://game-content-warnings.onrender.com` (Render free tier).
 |---|---|
 | Name (unique, ≤40*, no "Twitch"/"extension") | **Game Content Warnings (Unofficial)** *(34 chars. Keep "DoesTheDogDie" out of the name: it's their trademark, and their API terms (§5) only allow their marks under their guidelines, with attribution per §6. To rename, change `EXT_NAME` and rerun `scripts/make-listing-assets.py`)* |
 | Type | **Panel** + **Mobile** |
-| Version | `0.1.0` |
+| Version | `0.1.1` (0.1.0 was rejected under guideline 4.5 for its doesthedogdie.com links) |
 
 ## 2. Asset Hosting
 | Field | Value |
@@ -35,8 +35,8 @@ Backend: `https://game-content-warnings.onrender.com` (Render free tier).
 | Allowlist for URL Fetching Domains | `https://game-content-warnings.onrender.com` |
 | Allowlist for Image Domains | *(blank)* |
 | Allowlist for Media Domains | *(blank)* |
-| Allowlisted Panel URLs | `https://www.doesthedogdie.com/` (attribution link + the current game's DDD page) |
-| Allowlisted Config URLs | `https://www.doesthedogdie.com/` (match check + attribution links) |
+| Allowlisted Panel URLs | *(blank: the extension contains no links. Twitch guideline 4.5 rejected the DDD links in 0.1.0)* |
+| Allowlisted Config URLs | *(blank)* |
 
 ## 4. Monetization (required to reach Hosted Test)
 | Field | Value |
@@ -90,7 +90,7 @@ The extension stores no viewer information. Powered by DoesTheDogDie.com.
 
 ## 7. Files (Hosted Test)
 ```fish
-EBS_URL=https://game-content-warnings.onrender.com node scripts/build-frontend.ts --zip     # -> dist/frontend-0.1.0.zip (~15 KB)
+EBS_URL=https://game-content-warnings.onrender.com node scripts/build-frontend.ts --zip     # -> dist/frontend-0.1.1.zip (~15 KB)
 ```
 Upload the zip, then **Move to Hosted Test**. Access tab: the owner account is allowed by default;
 add test accounts or streamers if others should see it.
@@ -100,7 +100,7 @@ The form has two fields plus a checkbox. Before submitting, activate the extensi
 review channel: the version under review must stay activated there for the whole review.
 
 - **Name of Channel for Review:** `https://www.twitch.tv/cyberspaceman_`
-- **Walkthrough Guide and Change Log** (one box, v0.1.0 as submitted):
+- **Walkthrough Guide and Change Log** (one box, v0.1.1):
 
 ```
 WALKTHROUGH
@@ -113,11 +113,11 @@ Viewer panel (below the video on twitch.tv/cyberspaceman_):
 1. The header reads "Content warnings" with an "Unofficial" badge and the number of confirmed warnings.
 2. Warnings are grouped under broad categories, all collapsed at first, each showing a count. Click a category to expand it.
 3. Type in the search box at the top (for example "blood"). Matching warnings from every category appear. Search also understands related terms (for example "dog" also finds "a pet dies"). Clear the box to go back to the categories.
-4. At the bottom: a short disclaimer, an "Updated" date, "Powered by DoesTheDogDie.com", and a link to the current game's DoesTheDogDie page. Both links go to doesthedogdie.com, open in a new tab and are marked with ↗.
+4. At the bottom: a short disclaimer, an "Updated" date and "Powered by DoesTheDogDie.com". The extension contains no links.
 5. When the broadcaster changes category, the panel switches to the new game within seconds without reloading. A non-game category such as "Just Chatting" shows "No content warning data found for this category."
 
 Broadcaster configuration page (Extensions manager > Configure), optional:
-6. Shows which DoesTheDogDie entry was matched to the current category, with a link to check it.
+6. Shows which DoesTheDogDie entry was matched to the current category.
 7. "Wrong game? Search for the right one" lets the broadcaster pick a different entry ("Use this"). "Use automatic matching" undoes that. There are no other settings. Viewers always see every confirmed warning, unedited.
 
 Note: the backend runs on a free host that sleeps after 15 minutes without traffic. The first load after a quiet period can take up to about a minute. The panel shows a loading state and retries by itself, and after that it responds immediately.
@@ -129,6 +129,10 @@ Technical details:
 - The Streamer Allowlist is intentionally limited to two channels for a small first release.
 
 CHANGE LOG
+0.1.1: resubmission addressing the 0.1.0 review (guideline 4.5).
+- Removed every link from the extension: the link to the current game's DoesTheDogDie page (panel), the "Check it on DoesTheDogDie" link (configuration page), and the link on the attribution.
+- "Powered by DoesTheDogDie.com" remains as plain, unlinked text. It is the source credit DoesTheDogDie's API terms (section 6) require wherever their data is shown, not a call to action. Their terms only ask for a hyperlink where the medium permits, so on Twitch it is text only.
+- "Allowlisted Panel URLs" and "Allowlisted Config URLs" are now empty.
 0.1.0: initial release.
 ```
 

@@ -7,7 +7,7 @@ Read 2026-10-07 from https://www.doesthedogdie.com/api, /api/3.0 and /api/terms
 |---|---|---|
 | Tiers | Free: 30 req/min, 5,000/month, **non-commercial only**. Commercial: $50/mo, 600/min, 500,000/month | Client limits itself to 20/min; aggressive caching; quota tracked from `X-RateLimit-*` headers |
 | Commercial use (§9.1) | Free tier may not be used by apps that charge users, earn from ads/sponsorship/affiliates, or are run for a for-profit business | Extension is free with no monetization. **Open question:** does running it on monetized Twitch channels count? Ask DDD before public launch |
-| Attribution (§6) | Exact phrase "Powered by DoesTheDogDie.com", linked to https://www.doesthedogdie.com, on every view showing the data | Footer on panel and config page |
+| Attribution (§6) | Exact phrase "Powered by DoesTheDogDie.com" (or a phrase they approve in writing), reasonably visible, on every view showing the data; hyperlink to https://www.doesthedogdie.com only "where the medium permits" | Plain-text footer on panel and config page. Twitch forbids off-site links (guideline 4.5; 0.1.0 was rejected for them), so no hyperlink |
 | Caching | Allowed "solely to improve performance"; refresh at least every 30 days; delete on termination | Items refreshed weekly, stale copies served only up to 30 days, purge job every 6 h |
 | API key | Must not be shared | Lives only in the EBS environment |
 | User-Agent | Generic client UAs (curl, node, axios, python-requests…) get HTTP 403 | EBS sends `TwitchContentWarningsEBS/0.1` |

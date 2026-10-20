@@ -1,12 +1,13 @@
 import type { WarningsResponse } from "../../shared/api.d.ts";
-import { el, externalLink } from "./api.ts";
+import { el } from "./api.ts";
 import { matchesQuery, type Group } from "./topics.ts";
 
-const ATTRIBUTION_URL = "https://www.doesthedogdie.com";
-
-/** Required on every view that shows DDD data (DDD API terms §6). */
+/**
+ * Required on every view that shows DDD data (DDD API terms §6). Plain text, not a link: Twitch
+ * rejects off-site links (guideline 4.5), and §6(c) asks for the hyperlink only "where the medium permits".
+ */
 export function attribution(): HTMLElement {
-  return el("p", { className: "attribution" }, [externalLink(ATTRIBUTION_URL, "Powered by DoesTheDogDie.com")]);
+  return el("p", { className: "attribution", text: "Powered by DoesTheDogDie.com" });
 }
 
 /** "Does the Dog Die?" is DDD's trademark (API terms §5): never state or imply DDD made, reviewed or endorsed this extension. */
@@ -113,11 +114,6 @@ export function footer(data: WarningsResponse | "loading"): HTMLElement {
   return el("footer", {}, [
     ok ? el("p", { className: "note", text: "Describes the game, not necessarily this stream. Crowd-sourced; may be incomplete." }) : null,
     ok ? el("p", { className: "note freshness", text: freshness(ok.fetchedAt), attrs: { title: new Date(ok.fetchedAt).toLocaleString() } }) : null,
-    showsData ? el("div", { className: "credits" }, [
-      disclaimer(),
-      attribution(),
-      // Very bottom: this game's page on DoesTheDogDie (only when we matched one).
-      ok ? el("p", { className: "item-link" }, [externalLink(ok.ddd.url, `${ok.category.name} on DoesTheDogDie`)]) : null,
-    ]) : null,
+    showsData ? el("div", { className: "credits" }, [disclaimer(), attribution()]) : null,
   ]);
 }

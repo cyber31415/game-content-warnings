@@ -25,7 +25,7 @@ current category. Background and decisions: `PROJECT_BRIEF.md`. How to run/deplo
   scripts except the Twitch helper (must be first). Render API data with `textContent` only.
 - EBS: `channel_id`/role only from the verified JWT. Validate every upstream response with zod.
   Upstream failures become `status: "error"`, never a 5xx to viewers. Don't log viewer identifiers.
-- DDD terms: show "Powered by DoesTheDogDie.com" (linked) wherever DDD data appears; keep the
+- DDD terms: show "Powered by DoesTheDogDie.com" wherever DDD data appears, as plain text; keep the
   API key server-side; cached DDD data must never be older than 30 days; Free tier is non-commercial.
 - A wrong match is worse than none: prefer `low_confidence` / `no_match`.
 - Broadcaster corrections are per Twitch category and stored in the channel's Twitch developer
@@ -33,3 +33,5 @@ current category. Background and decisions: `PROJECT_BRIEF.md`. How to run/deplo
   because Render's free disk is wiped whenever the service sleeps.
 - Product rules: Yes-only list, no story spoilers, no descriptions/vote counts, no topic hiding,
   always labelled "Unofficial" (see README).
+- No links in the extension at all: Twitch rejected 0.1.0 under guideline 4.5 for its
+  doesthedogdie.com links, and text that points viewers to the site instead isn't allowed either.

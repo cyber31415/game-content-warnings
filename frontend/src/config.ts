@@ -3,7 +3,7 @@ import type {
   DddSearchResult,
   WarningsResponse,
 } from "../../shared/api.d.ts";
-import { applyTheme, brandMark, ebs, el, externalLink, HttpError } from "./api.ts";
+import { applyTheme, brandMark, ebs, el, HttpError } from "./api.ts";
 import { attribution, disclaimer, unofficialBadge } from "./render.ts";
 
 const LOAD_RETRY_MS = 15_000;
@@ -183,7 +183,6 @@ function render(): void {
     finish(parts);
     return;
   }
-  if (state.current.status === "ok") match.append(el("p", {}, [externalLink(state.current.ddd.url, "Check it on DoesTheDogDie")]));
   if (state.overrideDddItemId !== null) {
     const reset = el("button", { text: "Use automatic matching", attrs: { type: "button" } });
     reset.disabled = busy;

@@ -142,7 +142,7 @@ footer { padding-top: 4px; }
 footer .note { margin: 4px 0; }
 .credits { border-top: 1px solid var(--border); margin-top: 8px; padding-top: 6px; }
 .credits p { margin: 3px 0; }
-.attribution, .item-link { font-size: 12px; }
+.attribution { font-size: 12px; }
 .badge {
   font-size: 10px;
   font-weight: 700;

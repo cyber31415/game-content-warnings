@@ -12,12 +12,12 @@ export function attribution(): HTMLElement {
 
 /** "Does the Dog Die?" is DDD's trademark (API terms §5): never state or imply DDD made, reviewed or endorsed this extension. */
 export function disclaimer(): HTMLElement {
-  return el("p", { className: "note disclaimer", text: "Unofficial: not affiliated with or endorsed by DoesTheDogDie.com." });
+  return el("p", { className: "note disclaimer", text: "Unofficial: not affiliated with or endorsed by DoesTheDogDie." });
 }
 
 /** Small "Unofficial" badge shown beside the extension's title. */
 export function unofficialBadge(): HTMLElement {
-  return el("span", { className: "badge", text: "Unofficial", attrs: { title: "Not affiliated with or endorsed by DoesTheDogDie.com" } });
+  return el("span", { className: "badge", text: "Unofficial", attrs: { title: "Not affiliated with or endorsed by DoesTheDogDie" } });
 }
 
 export function capitalize(s: string): string {

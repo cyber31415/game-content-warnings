@@ -63,7 +63,7 @@ figcaption {{ font-size: 13px; color: #adadb8; }}
 </style></head><body>
 <div class="copy"><div class="brand">{LOGO_SVG}<span>{NAME}</span></div><h1>{title}</h1><ul>{bullets}</ul></div>
 <div class="shots">{imgs}</div>
-<p class="credit">Warning data <b>Powered by DoesTheDogDie.com</b> · Unofficial: not affiliated with or endorsed by DoesTheDogDie.com</p>
+<p class="credit">Warning data <b>Powered by DoesTheDogDie.com</b> · Unofficial: not affiliated with or endorsed by DoesTheDogDie</p>
 </body></html>"""
 
 

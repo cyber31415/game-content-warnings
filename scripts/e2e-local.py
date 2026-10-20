@@ -114,7 +114,7 @@ def main() -> int:
         check("items show just the trigger; freshness line")
 
         expect(page.locator("h1 .badge")).to_have_text("Unofficial")
-        expect(page.locator(".disclaimer")).to_have_text("Unofficial: not affiliated with or endorsed by DoesTheDogDie.com.")
+        expect(page.locator(".disclaimer")).to_have_text("Unofficial: not affiliated with or endorsed by DoesTheDogDie.")
         expect(page.locator(".credits p").last).to_have_text("Powered by DoesTheDogDie.com")
         check("'Unofficial' badge + non-affiliation line; attribution last in the footer")
 

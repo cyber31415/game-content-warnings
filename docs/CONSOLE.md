@@ -105,7 +105,7 @@ review channel: the version under review must stay activated there for the whole
 ```
 WALKTHROUGH
 
-What it does: a panel that lists the content warnings DoesTheDogDie.com voters have confirmed for the channel's current game category. Viewers only read it (no input, no accounts, no viewer data stored). It updates by itself when the broadcaster changes category. It is labelled "Unofficial" and states that it is not affiliated with DoesTheDogDie.com.
+What it does: a panel that lists the content warnings DoesTheDogDie.com voters have confirmed for the channel's current game category. Viewers only read it (no input, no accounts, no viewer data stored). It updates by itself when the broadcaster changes category. It is labelled "Unofficial" and states that it is not affiliated with DoesTheDogDie.
 
 Review channel: the extension is installed and activated as a panel on twitch.tv/cyberspaceman_. It is a panel, so the channel does not need to be live. The category will stay on "CONTROL Resonant" during the review so the panel has data to show. If you need the category changed at a set time, email CyberSpaceman09@proton.me.
 
@@ -131,7 +131,8 @@ Technical details:
 CHANGE LOG
 0.1.1: resubmission addressing the 0.1.0 review (guideline 4.5).
 - Removed every link from the extension: the link to the current game's DoesTheDogDie page (panel), the "Check it on DoesTheDogDie" link (configuration page), and the link on the attribution.
-- "Powered by DoesTheDogDie.com" remains as plain, unlinked text. It is the source credit DoesTheDogDie's API terms (section 6) require wherever their data is shown, not a call to action. Their terms only ask for a hyperlink where the medium permits, so on Twitch it is text only.
+- "Powered by DoesTheDogDie.com" remains as plain, unlinked text. It identifies the data source enabling the extension, which guideline 4.9 allows ("powered by X"), and it is the attribution DoesTheDogDie's API terms (section 6) require wherever their data is shown. It is not a call to action: it asks the viewer to do nothing, and there is no link.
+- That credit is the only place the domain appears: the "not affiliated with" disclaimer now just says "DoesTheDogDie".
 - "Allowlisted Panel URLs" and "Allowlisted Config URLs" are now empty.
 0.1.0: initial release.
 ```

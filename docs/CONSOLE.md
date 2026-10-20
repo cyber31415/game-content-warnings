@@ -143,3 +143,6 @@ CHANGE LOG
 - In Hosted Test the allowlists are enforced: if the panel shows "unavailable", check
   "Allowlist for URL Fetching Domains" first.
 - Mobile testing: the phone must be signed in as the owner or an allowlisted test account.
+- A channel stays on the version it installed. After moving a new version to Hosted Test, open that
+  version's Status tab → **View on Twitch and Install**, install it, and check My Extensions shows the
+  new version number before submitting (the reviewed version must be the one active on the channel).

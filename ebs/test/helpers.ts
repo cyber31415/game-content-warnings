@@ -186,7 +186,7 @@ export function fakeTurso() {
       return stmts.map((s) => {
         const st = db.prepare(s.sql);
         const args = (s.args ?? []) as (string | number | null)[];
-        if (/^\s*(SELECT|WITH)\b/i.test(s.sql)) return { rows: st.all(...args) as ExecuteResult["rows"], affected: 0 };
+        if (/^\s*(SELECT|WITH|PRAGMA)\b/i.test(s.sql)) return { rows: st.all(...args) as ExecuteResult["rows"], affected: 0 };
         return { rows: [], affected: Number(st.run(...args).changes) };
       });
     },

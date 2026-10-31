@@ -7,8 +7,9 @@ export const USAGE_FIELDS = [
   "configRequests", // /api/broadcaster/*
   "preflights", // CORS OPTIONS requests the browser sends before API calls
   "eventsubNotifications", // Twitch EventSub webhook deliveries
-  "otherRequests", // /health, /usage, legal pages
-  "bytesSent", // response bytes written (headers + body, after compression)
+  "otherRequests", // /usage, legal pages, anything else
+  "healthChecks", // /health: mostly the host's own automatic checks (every few seconds on Render)
+  "bytesSent", // response bytes written (headers + body, after compression), excluding /health
   "dddRequests", // HTTP requests to DoesTheDogDie (what its monthly quota counts)
 ] as const;
 
@@ -65,5 +66,6 @@ export function requestField(method: string, url: string): UsageField {
   if (path === "/api/warnings" || path === "/api/topics") return "viewerRequests";
   if (path.startsWith("/api/broadcaster/")) return "configRequests";
   if (path === "/eventsub") return "eventsubNotifications";
+  if (path === "/health") return "healthChecks";
   return "otherRequests";
 }

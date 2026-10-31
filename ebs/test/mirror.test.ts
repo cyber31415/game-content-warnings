@@ -145,3 +145,33 @@ test("usage counts survive a failed save and go out with the next one", async ()
   const [today] = await mirror.usageHistory();
   assert.equal(today!.counts.viewerRequests, 5);
 });
+
+test("a usage table created before a counter existed gets the new column (old rows read 0)", async () => {
+  const turso = fakeTurso();
+  // The table as the first release created it: no healthChecks column.
+  turso.db.exec("CREATE TABLE usage_daily (day TEXT PRIMARY KEY, wakeups INTEGER NOT NULL DEFAULT 0, viewerRequests INTEGER NOT NULL DEFAULT 0, configRequests INTEGER NOT NULL DEFAULT 0, preflights INTEGER NOT NULL DEFAULT 0, eventsubNotifications INTEGER NOT NULL DEFAULT 0, otherRequests INTEGER NOT NULL DEFAULT 0, bytesSent INTEGER NOT NULL DEFAULT 0, dddRequests INTEGER NOT NULL DEFAULT 0)");
+  turso.db.exec("INSERT INTO usage_daily (day, otherRequests) VALUES ('2026-10-30', 7)");
+  const usage = new UsageStats();
+  const mirror = new CacheMirror({ store: new Store(":memory:"), remote: turso.remote, usage });
+  usage.add("healthChecks", 4);
+  await mirror.flushUsage();
+  const history = await mirror.usageHistory();
+  const today = history.find((d) => d.day !== "2026-10-30")!;
+  const old = history.find((d) => d.day === "2026-10-30")!;
+  assert.equal(today.counts.healthChecks, 4);
+  assert.equal(old.counts.healthChecks, 0);
+  assert.equal(old.counts.otherRequests, 7);
+});
+
+test("the host's health checks are counted on their own and left out of data sent", async () => {
+  const turso = fakeTurso();
+  const { app, usage } = await boot(turso);
+  for (let i = 0; i < 3; i++) await app.inject({ url: "/health" });
+  const [counts] = [...usage.peek().values()];
+  assert.equal(counts!.healthChecks, 3);
+  assert.equal(counts!.otherRequests, 0);
+  assert.equal(counts!.bytesSent, 0);
+  await app.inject({ url: "/api/warnings", headers: await auth() });
+  assert.ok([...usage.peek().values()][0]!.bytesSent > 0, "real requests still count bytes");
+  await app.close();
+});

@@ -91,7 +91,10 @@ export async function buildServer(deps: Deps): Promise<FastifyInstance> {
       startBytes.set(req, req.raw.socket?.bytesWritten ?? 0);
     });
     app.addHook("onResponse", async (req, reply) => {
-      usage.add(requestField(req.method, req.url));
+      const field = requestField(req.method, req.url);
+      usage.add(field);
+      // The host's health checks run on its internal network: not viewer traffic, not counted as bandwidth.
+      if (field === "healthChecks") return;
       const sent = (req.raw.socket?.bytesWritten ?? 0) - (startBytes.get(req) ?? 0);
       usage.add("bytesSent", sent > 0 ? sent : Number(reply.getHeader("content-length")) || 0);
     });

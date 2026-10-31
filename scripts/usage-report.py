@@ -34,7 +34,7 @@ def main() -> None:
     today = date.today()
     month = today.strftime("%Y-%m")
     days = [d for d in u["days"] if d["day"].startswith(month)]
-    tot = lambda field: sum(d[field] for d in days)
+    tot = lambda field: sum(d.get(field, 0) for d in days)
 
     print(f"Usage report, {today.isoformat()}" + ("" if u["persisted"] else "  (NOT saved: totals cover only the current server process)"))
     print(f"Server process started {u['processStartedAt']}")
@@ -45,7 +45,8 @@ def main() -> None:
     print(f"  Config page requests    {tot('configRequests'):>8}")
     print(f"  Browser preflights      {tot('preflights'):>8}")
     print(f"  Twitch category events  {tot('eventsubNotifications'):>8}")
-    print(f"  Other (health, pages)   {tot('otherRequests'):>8}")
+    print(f"  Other (pages, /usage)   {tot('otherRequests'):>8}")
+    print(f"  Host health checks      {tot('healthChecks'):>8}  (not counted in data sent)")
     print(f"  Data sent               {tot('bytesSent') / 1_048_576:>8.1f} MB")
     print(f"  DoesTheDogDie requests  {tot('dddRequests'):>8}")
 

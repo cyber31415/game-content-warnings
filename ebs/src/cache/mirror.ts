@@ -5,8 +5,14 @@ import { USAGE_FIELDS, emptyCounts, type UsageCounts, type UsageStats } from "..
 
 // Copies the DDD cache and usage counters to Turso, because the free host wipes its disk on every
 // sleep and restart. The local SQLite stays the working copy (fast, synchronous); the mirror is
-// written in the background and read back once at startup. DDD terms apply to the copy as well:
-// the 30-day purge runs against it, and nothing older than the cutoff is ever loaded back.
+// written in the background and read back once at startup.
+//
+// DDD terms (cached data never older than 30 days) apply to the copy too, but it can only be
+// cleaned while the EBS runs (at startup and with the 6-hourly purge), and the free host may sleep
+// for days. So the copy keeps DDD data for REMOTE_RETENTION_MS only, a day longer than the weekly
+// refresh: a row could only outlive 30 days if the EBS slept for over three weeks straight, and
+// even then it's deleted before anything is loaded at the next start. Retiring the extension means
+// deleting the Turso database.
 
 const REMOTE_SCHEMA = [
   `CREATE TABLE IF NOT EXISTS game_map (
@@ -17,6 +23,9 @@ const REMOTE_SCHEMA = [
   `CREATE TABLE IF NOT EXISTS ddd_meta (key TEXT PRIMARY KEY, payload_json TEXT NOT NULL, fetched_at INTEGER NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS usage_daily (day TEXT PRIMARY KEY, ${USAGE_FIELDS.map((f) => `${f} INTEGER NOT NULL DEFAULT 0`).join(", ")})`,
 ];
+
+/** How long the Turso copy keeps DDD data (items, catalogue, match candidates). */
+export const REMOTE_RETENTION_MS = 8 * 24 * 60 * 60_000;
 
 const ITEM_PAGE = 50; // items are ~40 KB of JSON each; keep restore responses a few MB at most
 
@@ -43,17 +52,26 @@ export class CacheMirror {
   private readonly store: Store;
   private readonly remote: Remote;
   private readonly usage: UsageStats | undefined;
+  private readonly retentionMs: number;
+  private readonly now: () => number;
   /** Replaceable so the server can route warnings into its own log once it exists. */
   log: Logger;
   private chain: Promise<void> = Promise.resolve();
   /** Shared by concurrent callers (restore, queued writes, /usage); cleared on failure to retry later. */
   private schema: Promise<void> | undefined;
 
-  constructor(opts: { store: Store; remote: Remote; usage?: UsageStats; log?: Logger }) {
+  constructor(opts: { store: Store; remote: Remote; usage?: UsageStats; log?: Logger; retentionMs?: number; now?: () => number }) {
     this.store = opts.store;
     this.remote = opts.remote;
     this.usage = opts.usage;
     this.log = opts.log ?? { warn: () => {} };
+    this.retentionMs = opts.retentionMs ?? REMOTE_RETENTION_MS;
+    this.now = opts.now ?? Date.now;
+  }
+
+  /** The stricter of the caller's DDD cutoff and the copy's own retention. */
+  private remoteCutoff(cutoff: number): number {
+    return Math.max(cutoff, this.now() - this.retentionMs);
   }
 
   private ensureSchema(): Promise<void> {
@@ -71,8 +89,9 @@ export class CacheMirror {
     return this.schema;
   }
 
-  /** Purges the copy to the DDD cutoff, then loads what's left into the local store. */
-  async restore(cutoff: number): Promise<RestoreSummary> {
+  /** Purges the copy (to the DDD cutoff or its own shorter retention), then loads what's left into the local store. */
+  async restore(dddCutoff: number): Promise<RestoreSummary> {
+    const cutoff = this.remoteCutoff(dddCutoff);
     await this.ensureSchema();
     await this.remote.batch(purgeStatements(cutoff));
     const [games, meta] = await this.remote.batch([
@@ -200,7 +219,7 @@ export class CacheMirror {
         ];
       }
       case "purge":
-        return purgeStatements(change.cutoff);
+        return purgeStatements(this.remoteCutoff(change.cutoff));
     }
   }
 }

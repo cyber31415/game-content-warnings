@@ -217,3 +217,31 @@ test("CORS preflights over a kept-alive connection count only their own bytes", 
     await app.close();
   }
 });
+
+test("the Turso copy keeps DDD data for 8 days only (it can't be cleaned while the host sleeps)", async () => {
+  const turso = fakeTurso();
+  const store = new Store(":memory:");
+  const mirror = new CacheMirror({ store, remote: turso.remote });
+  mirror.attach();
+  const now = Date.now();
+  store.putItem(1, '{"a":1}', now - 10 * DAY);
+  store.putItem(2, '{"b":2}', now - 6 * DAY);
+  store.putMeta("catalog", "{}", now - 9 * DAY);
+  await mirror.idle();
+
+  // The 6-hourly purge (30-day DDD cutoff locally) trims the copy to 8 days; the local cache keeps its 30.
+  store.purgeItemsOlderThan(now - 30 * DAY);
+  await mirror.idle();
+  assert.ok(store.getItem(1), "local copy keeps its 30-day stale fallback");
+  assert.deepEqual(turso.db.prepare("SELECT ddd_item_id FROM ddd_item_cache").all().map((r) => Number(r.ddd_item_id)), [2]);
+  assert.equal(turso.db.prepare("SELECT COUNT(*) AS n FROM ddd_meta").get()!.n, 0);
+
+  // After a restart only what the copy kept comes back, even if the caller's cutoff is 30 days.
+  turso.db.prepare("INSERT INTO ddd_item_cache VALUES (3, '{}', ?)").run(now - 12 * DAY); // e.g. written just before a long sleep
+  const fresh = new Store(":memory:");
+  const summary = await new CacheMirror({ store: fresh, remote: turso.remote }).restore(now - 30 * DAY);
+  assert.equal(summary.items, 1);
+  assert.ok(fresh.getItem(2));
+  assert.equal(fresh.getItem(3), undefined);
+  assert.equal(turso.db.prepare("SELECT COUNT(*) AS n FROM ddd_item_cache WHERE ddd_item_id = 3").get()!.n, 0, "deleted from Turso at startup");
+});

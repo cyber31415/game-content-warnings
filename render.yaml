@@ -1,7 +1,8 @@
 # Render Blueprint: free web service running the EBS from the Dockerfile.
 # Render > New > Blueprint > pick this repo. You'll be asked for the sync:false values.
 # Free tier: sleeps after 15 min idle (first request then takes ~30-60 s); the disk is
-# wiped on sleep/redeploy, so the SQLite cache simply refills from DDD.
+# wiped on sleep/redeploy. With TURSO_* set, the DDD cache and usage totals are copied to Turso
+# and loaded back at startup; without them the SQLite cache simply refills from DDD.
 services:
   - type: web
     name: game-content-warnings
@@ -40,4 +41,9 @@ services:
       - key: TWITCH_EXT_OWNER_ID
         sync: false
       - key: DDD_API_KEY
+        sync: false
+      # Optional: Turso database (libsql://... URL and its token) for a cache that survives restarts.
+      - key: TURSO_DATABASE_URL
+        sync: false
+      - key: TURSO_AUTH_TOKEN
         sync: false

@@ -6,7 +6,7 @@ import type { FastifyInstance } from "fastify";
 // release, and keep them accurate if what the EBS stores or logs changes.
 
 /** Bump when the privacy/terms text below changes. */
-export const LEGAL_UPDATED = "October 8, 2026";
+export const LEGAL_UPDATED = "October 31, 2026";
 
 type LegalDeps = { extName: string; operator: string; contactEmail: string; updated: string };
 
@@ -65,8 +65,10 @@ information about viewers.</p>
   copy in our server's cache.</li>
   <li><strong>Public game data:</strong> Twitch category names and DoesTheDogDie content-warning data, cached to
   keep the extension fast. Cached DoesTheDogDie data is refreshed and never kept longer than 30 days.</li>
+  <li><strong>Usage totals:</strong> daily counts of requests served, data sent and requests made to
+  DoesTheDogDie, used to keep the service within its limits. They contain no viewer, channel or IP information.</li>
 </ul>
-<p>We do not use cookies, advertising, analytics or tracking, and we do not sell or share personal information.
+<p>We do not use cookies, advertising, or analytics or tracking of people, and we do not sell or share personal information.
 The panel uses no cookies or local storage; your browser may briefly keep responses in its normal HTTP cache.</p>
 
 <h2>Third parties</h2>
@@ -74,7 +76,8 @@ The panel uses no cookies or local storage; your browser may briefly keep respon
   <li><strong>Twitch</strong> runs the extension platform: <a href="https://www.twitch.tv/p/legal/privacy-notice/">Twitch Privacy Notice</a>.</li>
   <li><strong>DoesTheDogDie.com</strong> supplies the warning data. Our server requests game data from it; no
   information about viewers is sent.</li>
-  <li>Our server host processes requests on our behalf.</li>
+  <li>Our server host processes requests on our behalf, and our database host keeps the cached game data and usage
+  totals so they survive server restarts.</li>
 </ul>
 
 <h2>Retention and deletion</h2>

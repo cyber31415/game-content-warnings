@@ -27,6 +27,13 @@ export type ChannelRow = {
   lastSeenAt: number;
 };
 
+/** A write to the DDD cache, so a mirror (see mirror.ts) can copy the current state of that key. */
+export type CacheChange =
+  | { kind: "gameMap"; twitchGameId: string }
+  | { kind: "item"; dddItemId: number }
+  | { kind: "meta"; key: string }
+  | { kind: "purge"; cutoff: number };
+
 const MIGRATIONS = [
   `CREATE TABLE game_map (
      twitch_game_id TEXT PRIMARY KEY,
@@ -71,6 +78,8 @@ const MIGRATIONS = [
 /** Thin typed wrapper over node:sqlite. All timestamps are epoch milliseconds. */
 export class Store {
   readonly db: DatabaseSync;
+  /** Called after every DDD cache write. Must not throw into callers (errors are swallowed). */
+  onWrite: ((change: CacheChange) => void) | undefined;
 
   constructor(path: string, opts: { vfs?: string } = {}) {
     if (path === ":memory:") {
@@ -131,12 +140,14 @@ export class Store {
          WHERE game_map.source = 'auto'`,
       )
       .run(row.twitchGameId, row.twitchName, row.dddItemId, row.confidence, row.status, row.candidatesJson, row.updatedAt);
+    this.emit({ kind: "gameMap", twitchGameId: row.twitchGameId });
   }
 
   /** Operator-curated mapping (global, applies to every channel). Pass null to delete. */
   putManualMatch(twitchGameId: string, twitchName: string, dddItemId: number | null, now = Date.now()): void {
     if (dddItemId === null) {
       this.db.prepare("DELETE FROM game_map WHERE twitch_game_id = ? AND source = 'manual'").run(twitchGameId);
+      this.emit({ kind: "gameMap", twitchGameId });
       return;
     }
     this.db
@@ -148,11 +159,13 @@ export class Store {
            status = 'matched', source = 'manual', candidates_json = '[]', updated_at = excluded.updated_at`,
       )
       .run(twitchGameId, twitchName, dddItemId, now);
+    this.emit({ kind: "gameMap", twitchGameId });
   }
 
   /** Forgets an automatic decision (e.g. its DDD item was deleted) so the matcher runs again. */
   deleteAutoMatch(twitchGameId: string): void {
     this.db.prepare("DELETE FROM game_map WHERE twitch_game_id = ? AND source = 'auto'").run(twitchGameId);
+    this.emit({ kind: "gameMap", twitchGameId });
   }
 
   /** Keeps manual mappings exactly in sync with a list (removes manual rows not in it). */
@@ -184,10 +197,12 @@ export class Store {
          ON CONFLICT (ddd_item_id) DO UPDATE SET payload_json = excluded.payload_json, fetched_at = excluded.fetched_at`,
       )
       .run(dddItemId, payloadJson, now);
+    this.emit({ kind: "item", dddItemId });
   }
 
   deleteItem(dddItemId: number): void {
     this.db.prepare("DELETE FROM ddd_item_cache WHERE ddd_item_id = ?").run(dddItemId);
+    this.emit({ kind: "item", dddItemId });
   }
 
   /** DDD terms: cached data must not be older than 30 days. */
@@ -195,7 +210,9 @@ export class Store {
     this.db.prepare("DELETE FROM ddd_meta WHERE fetched_at < ?").run(cutoff);
     // Candidate names/years come from DDD too; drop them from stale automatic decisions.
     this.db.prepare("UPDATE game_map SET candidates_json = '[]' WHERE source = 'auto' AND updated_at < ?").run(cutoff);
-    return Number(this.db.prepare("DELETE FROM ddd_item_cache WHERE fetched_at < ?").run(cutoff).changes);
+    const removed = Number(this.db.prepare("DELETE FROM ddd_item_cache WHERE fetched_at < ?").run(cutoff).changes);
+    this.emit({ kind: "purge", cutoff });
+    return removed;
   }
 
   getMeta(key: string): { payloadJson: string; fetchedAt: number } | undefined {
@@ -212,6 +229,54 @@ export class Store {
          ON CONFLICT (key) DO UPDATE SET payload_json = excluded.payload_json, fetched_at = excluded.fetched_at`,
       )
       .run(key, payloadJson, now);
+    this.emit({ kind: "meta", key });
+  }
+
+  // --- Loading a mirror's copy at startup. These never emit, and never replace newer local rows.
+
+  importGameMap(row: GameMapRow): void {
+    if (row.source !== "auto") return; // manual pins come from the code (manual-mappings.ts)
+    this.db
+      .prepare(
+        `INSERT INTO game_map (twitch_game_id, twitch_name, ddd_item_id, confidence, status, source, candidates_json, seen_count, updated_at)
+         VALUES (?, ?, ?, ?, ?, 'auto', ?, ?, ?)
+         ON CONFLICT (twitch_game_id) DO UPDATE SET
+           twitch_name = excluded.twitch_name, ddd_item_id = excluded.ddd_item_id, confidence = excluded.confidence,
+           status = excluded.status, candidates_json = excluded.candidates_json, seen_count = excluded.seen_count,
+           updated_at = excluded.updated_at
+         WHERE game_map.source = 'auto' AND excluded.updated_at > game_map.updated_at`,
+      )
+      .run(row.twitchGameId, row.twitchName, row.dddItemId, row.confidence, row.status, row.candidatesJson, row.seenCount, row.updatedAt);
+  }
+
+  importItem(dddItemId: number, payloadJson: string, fetchedAt: number): void {
+    this.db
+      .prepare(
+        `INSERT INTO ddd_item_cache (ddd_item_id, payload_json, fetched_at) VALUES (?, ?, ?)
+         ON CONFLICT (ddd_item_id) DO UPDATE SET payload_json = excluded.payload_json, fetched_at = excluded.fetched_at
+         WHERE excluded.fetched_at > ddd_item_cache.fetched_at`,
+      )
+      .run(dddItemId, payloadJson, fetchedAt);
+  }
+
+  importMeta(key: string, payloadJson: string, fetchedAt: number): void {
+    this.db
+      .prepare(
+        `INSERT INTO ddd_meta (key, payload_json, fetched_at) VALUES (?, ?, ?)
+         ON CONFLICT (key) DO UPDATE SET payload_json = excluded.payload_json, fetched_at = excluded.fetched_at
+         WHERE excluded.fetched_at > ddd_meta.fetched_at`,
+      )
+      .run(key, payloadJson, fetchedAt);
+  }
+
+  /** Sizes of the DDD cache, for /usage. */
+  cacheCounts(): { matchedGames: number; otherCategories: number; savedItems: number } {
+    const n = (sql: string) => Number((this.db.prepare(sql).get() as { n: number }).n);
+    return {
+      matchedGames: n("SELECT COUNT(*) AS n FROM game_map WHERE status = 'matched'"),
+      otherCategories: n("SELECT COUNT(*) AS n FROM game_map WHERE status != 'matched'"),
+      savedItems: n("SELECT COUNT(*) AS n FROM ddd_item_cache"),
+    };
   }
 
   getChannel(channelId: string): ChannelRow | undefined {
@@ -266,5 +331,13 @@ export class Store {
 
   close(): void {
     this.db.close();
+  }
+
+  private emit(change: CacheChange): void {
+    try {
+      this.onWrite?.(change);
+    } catch {
+      // A mirror problem must never break serving from the local cache.
+    }
   }
 }

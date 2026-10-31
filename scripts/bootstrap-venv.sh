@@ -112,6 +112,46 @@ if [[ ! -x "$VENV/bin/gh" ]] || ! "$VENV/bin/gh" --version 2>/dev/null | grep -q
   rm -rf "$GH_TMP"
 fi
 
+# libSQL server (sqld): a local stand-in for Turso to test the cache mirror against
+# (.venv/bin/sqld --http-listen-addr 127.0.0.1:8097 --db-path /tmp/sqld; see .env.example).
+SQLD_VERSION="${SQLD_VERSION:-0.24.32}"
+if [[ ! -x "$VENV/bin/sqld" ]] || ! "$VENV/bin/sqld" --version 2>/dev/null | grep -q "$SQLD_VERSION"; then
+  echo "==> Installing sqld $SQLD_VERSION"
+  case "$NODE_ARCH" in x64) SQ_ARCH=x86_64 ;; arm64) SQ_ARCH=aarch64 ;; esac
+  SQ_TAR="libsql-server-${SQ_ARCH}-unknown-linux-gnu.tar.xz"
+  SQ_URL="https://github.com/tursodatabase/libsql/releases/download/libsql-server-v$SQLD_VERSION/$SQ_TAR"
+  SQ_TMP="$(mktemp -d)"
+  curl -fsSL "$SQ_URL" -o "$SQ_TMP/$SQ_TAR"
+  curl -fsSL "$SQ_URL.sha256" -o "$SQ_TMP/$SQ_TAR.sha256"
+  (cd "$SQ_TMP" && echo "$(cut -d' ' -f1 "$SQ_TAR.sha256")  $SQ_TAR" | sha256sum -c -)
+  tar -xJf "$SQ_TMP/$SQ_TAR" -C "$SQ_TMP"
+  cp "$(find "$SQ_TMP" -type f -name sqld | head -1)" "$VENV/bin/sqld"
+  chmod +x "$VENV/bin/sqld"
+  rm -rf "$SQ_TMP"
+fi
+
+# Turso CLI (optional: inspect the hosted database). Config kept in local state like the Twitch CLI.
+TURSO_CLI_VERSION="${TURSO_CLI_VERSION:-1.0.34}"
+if [[ ! -x "$VENV/bin/turso-cli" ]] || ! "$VENV/bin/turso-cli" --version 2>/dev/null | grep -q "$TURSO_CLI_VERSION"; then
+  echo "==> Installing Turso CLI $TURSO_CLI_VERSION"
+  case "$NODE_ARCH" in x64) TU_ARCH=x86_64 ;; arm64) TU_ARCH=arm64 ;; esac
+  TU_TAR="turso-cli_Linux_${TU_ARCH}.tar.gz"
+  TU_TMP="$(mktemp -d)"
+  curl -fsSL "https://github.com/tursodatabase/turso-cli/releases/download/v$TURSO_CLI_VERSION/$TU_TAR" -o "$TU_TMP/$TU_TAR"
+  curl -fsSL "https://github.com/tursodatabase/turso-cli/releases/download/v$TURSO_CLI_VERSION/checksums.txt" -o "$TU_TMP/checksums.txt"
+  (cd "$TU_TMP" && grep " $TU_TAR\$" checksums.txt | sha256sum -c -)
+  tar -xzf "$TU_TMP/$TU_TAR" -C "$TU_TMP"
+  cp "$(find "$TU_TMP" -type f -name turso | head -1)" "$VENV/bin/turso-cli"
+  chmod +x "$VENV/bin/turso-cli"
+  rm -rf "$TU_TMP"
+fi
+cat > "$VENV/bin/turso" <<EOF
+#!/usr/bin/env bash
+mkdir -p "$TWITCH_CLI_STATE/turso"
+XDG_CONFIG_HOME="$TWITCH_CLI_STATE/turso" exec "$VENV/bin/turso-cli" "\$@"
+EOF
+chmod +x "$VENV/bin/turso"
+
 # Python dev tooling (Playwright for local end-to-end/screenshot checks) with its
 # browser kept inside the venv rather than ~/.cache.
 echo "==> Installing Python dev tools"

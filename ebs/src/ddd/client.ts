@@ -71,6 +71,8 @@ export class DddClient {
   private readonly limiter: Limiter;
   private readonly maxQueueWaitMs: number;
   private readonly sleep: (ms: number) => Promise<void>;
+  /** Called once per HTTP request sent to DDD (each one counts against the monthly quota). */
+  onRequest: (() => void) | undefined;
   /** Last rate-limit headers seen; lets health checks / logs watch the monthly quota. */
   budget: DddBudget = { remainingMinute: null, remainingMonth: null, limitMonth: null };
 
@@ -132,6 +134,7 @@ export class DddClient {
   private async send(path: string): Promise<Response> {
     const wait = this.limiter.reserve(this.maxQueueWaitMs);
     if (wait > 0) await this.sleep(wait);
+    this.onRequest?.();
     const res = await this.fetchFn(`${this.apiBase}${path}`, {
       headers: { "X-API-KEY": this.apiKey, Accept: "application/json", "User-Agent": DDD_USER_AGENT },
       signal: AbortSignal.timeout(10_000),

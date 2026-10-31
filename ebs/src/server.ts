@@ -17,11 +17,17 @@ import { LiveUpdates } from "./live.ts";
 import { TopicCatalog } from "./topics.ts";
 import { MANUAL_MAPPINGS } from "./match/manual-mappings.ts";
 import { Corrections } from "./corrections.ts";
+import { CacheMirror } from "./cache/mirror.ts";
+import { TursoClient } from "./cache/turso.ts";
+import { UsageStats, requestField } from "./usage.ts";
 
-export type Deps = { config: Config; helix: HelixClient; ddd: DddClient; store: Store };
+export type Deps = { config: Config; helix: HelixClient; ddd: DddClient; store: Store; usage?: UsageStats; mirror?: CacheMirror };
+
+const RESTORE_TIMEOUT_MS = 20_000;
+const USAGE_FLUSH_MS = 5 * 60_000;
 
 export async function buildServer(deps: Deps): Promise<FastifyInstance> {
-  const { config, helix, ddd, store } = deps;
+  const { config, helix, ddd, store, usage, mirror } = deps;
   const app = Fastify({
     trustProxy: config.env === "production", // behind the host's TLS proxy
     logger:
@@ -77,7 +83,22 @@ export async function buildServer(deps: Deps): Promise<FastifyInstance> {
     },
   });
 
-  await app.register(healthRoutes({ ddd }));
+  if (usage) {
+    // Requests and bytes per category of route; the socket counter includes headers and
+    // reflects compression, i.e. roughly what the host bills as outbound bandwidth.
+    const startBytes = new WeakMap<object, number>();
+    app.addHook("onRequest", async (req) => {
+      startBytes.set(req, req.raw.socket?.bytesWritten ?? 0);
+    });
+    app.addHook("onResponse", async (req, reply) => {
+      usage.add(requestField(req.method, req.url));
+      const sent = (req.raw.socket?.bytesWritten ?? 0) - (startBytes.get(req) ?? 0);
+      usage.add("bytesSent", sent > 0 ? sent : Number(reply.getHeader("content-length")) || 0);
+    });
+    ddd.onRequest = () => usage.add("dddRequests");
+  }
+
+  await app.register(healthRoutes({ ddd, store, ...(usage && { usage }), ...(mirror && { mirror }) }));
   await app.register(legalRoutes({ ...config.legal, updated: LEGAL_UPDATED }));
   if (config.eventsub) await app.register(eventsubRoutes({ secret: config.eventsub.secret, live }));
 
@@ -99,6 +120,29 @@ export async function buildServer(deps: Deps): Promise<FastifyInstance> {
   purge.unref();
   app.addHook("onClose", async () => clearInterval(purge));
 
+  if (mirror) {
+    mirror.log = app.log;
+    // Load the saved cache before serving (and before the catalogue warm-up below, which then
+    // finds the saved catalogue instead of spending DDD requests). Never blocks startup for long.
+    app.addHook("onReady", async () => {
+      try {
+        const cutoff = Date.now() - (TTL.itemMaxStale - PURGE_EVERY);
+        const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timed out")), RESTORE_TIMEOUT_MS).unref());
+        app.log.info(await Promise.race([mirror.restore(cutoff), timeout]), "restored DDD cache from Turso");
+      } catch (err) {
+        app.log.warn({ err: String(err) }, "restoring the DDD cache from Turso failed; starting with an empty cache");
+      }
+      mirror.attach();
+    });
+    const flush = setInterval(() => void mirror.flushUsage().catch(() => {}), USAGE_FLUSH_MS);
+    flush.unref();
+    app.addHook("onClose", async () => {
+      clearInterval(flush);
+      await mirror.flushUsage().catch((err) => app.log.warn({ err: String(err) }, "saving usage counts to Turso failed"));
+      await mirror.idle();
+    });
+  }
+
   if (config.env !== "test") {
     // Warm the topic catalogue (3 DDD requests, cached a week) so no viewer waits for it.
     app.addHook("onReady", async () => {
@@ -119,11 +163,15 @@ async function main(): Promise<void> {
   const helix = new HelixClient({ clientId: config.twitch.clientId, apiBase: config.twitch.apiBase, tokens });
   const ddd = new DddClient({ apiKey: config.ddd.apiKey, apiBase: config.ddd.apiBase });
   const store = new Store(config.database.path, { vfs: config.database.vfs });
-  const app = await buildServer({ config, helix, ddd, store });
-  app.addHook("onClose", async () => store.close());
-  for (const sig of ["SIGINT", "SIGTERM"] as const) process.once(sig, () => void app.close());
+  const usage = new UsageStats();
+  usage.add("wakeups");
+  const mirror = config.turso ? new CacheMirror({ store, usage, remote: new TursoClient(config.turso) }) : undefined;
+  const app = await buildServer({ config, helix, ddd, store, usage, ...(mirror && { mirror }) });
+  if (config.tursoProblem) app.log.warn(`Turso disabled: ${config.tursoProblem}`);
+  // The store closes after the server (and the mirror's last writes) have finished.
+  for (const sig of ["SIGINT", "SIGTERM"] as const) process.once(sig, () => void app.close().finally(() => store.close()));
   await app.listen({ host: config.host, port: config.port });
-  app.log.info({ liveUpdates: Boolean(config.eventsub), origins: config.allowedOrigins }, "EBS ready");
+  app.log.info({ liveUpdates: Boolean(config.eventsub), origins: config.allowedOrigins, turso: Boolean(mirror) }, "EBS ready");
 }
 
 if (import.meta.main) {

@@ -30,6 +30,13 @@ const EnvSchema = z.object({
   // that don't support POSIX byte-range locks. Leave empty on normal disks.
   DATABASE_VFS: z.string().optional(),
 
+  // Optional Turso database that keeps the DDD cache and usage counts across restarts (the free
+  // host wipes its disk on every sleep). URL as Turso shows it (libsql://...); token from
+  // "Create Token". Unset = local SQLite only, as before. A bad value never stops the EBS (it's
+  // only a cache): it's reported at startup and the EBS runs without the mirror.
+  TURSO_DATABASE_URL: z.string().optional(),
+  TURSO_AUTH_TOKEN: z.string().optional(),
+
   // Comma-separated. Defaults to the extension's own frontend origin.
   ALLOWED_ORIGINS: z.string().optional(),
 
@@ -77,6 +84,9 @@ export type Config = {
   };
   ddd: { apiKey: string; apiBase: string };
   database: { path: string; vfs: string | undefined };
+  turso: { url: string; authToken: string | undefined } | undefined;
+  /** Why Turso settings were ignored, if they were (logged at startup; never contains the values). */
+  tursoProblem: string | undefined;
   allowedOrigins: string[];
   eventsub: { callbackUrl: string; secret: string } | undefined;
   legal: { extName: string; operator: string; contactEmail: string };
@@ -111,6 +121,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     },
     ddd: { apiKey: e.DDD_API_KEY, apiBase: e.DDD_API_BASE.replace(/\/$/, "") },
     database: { path: e.DATABASE_PATH, vfs: e.DATABASE_VFS || undefined },
+    ...tursoSettings(e.NODE_ENV, e.TURSO_DATABASE_URL, e.TURSO_AUTH_TOKEN),
     allowedOrigins,
     eventsub: e.EVENTSUB_SECRET
       ? { callbackUrl: e.EVENTSUB_CALLBACK_URL || `${e.RENDER_EXTERNAL_URL!.replace(/\/$/, "")}/eventsub`, secret: e.EVENTSUB_SECRET }
@@ -123,4 +134,13 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     correctionsStore: e.CORRECTIONS_STORE || (e.NODE_ENV === "production" ? "twitch" : "local"),
     clientIpHeader: e.CLIENT_IP_HEADER ? e.CLIENT_IP_HEADER.toLowerCase() : undefined,
   };
+}
+
+function tursoSettings(env: string, url: string | undefined, token: string | undefined): Pick<Config, "turso" | "tursoProblem"> {
+  const off = (problem: string) => ({ turso: undefined, tursoProblem: problem });
+  if (!url) return token ? off("TURSO_AUTH_TOKEN is set but TURSO_DATABASE_URL isn't") : { turso: undefined, tursoProblem: undefined };
+  if (!/^(libsql|turso|https?):\/\/[^\s/]+(\/[^\s]*)?$/.test(url)) return off("TURSO_DATABASE_URL must look like libsql://<db>-<org>.turso.io");
+  // Local libSQL servers (development) run without auth; Turso's hosted databases need the token.
+  if (env === "production" && !token) return off("TURSO_DATABASE_URL is set but TURSO_AUTH_TOKEN isn't");
+  return { turso: { url, authToken: token }, tursoProblem: undefined };
 }

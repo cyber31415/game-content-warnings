@@ -168,3 +168,28 @@ export function testDeps(configOverrides: Record<string, string> = {}) {
   const store = new Store(":memory:");
   return { config, helix, ddd, store, up, fetch: f };
 }
+
+import { DatabaseSync } from "node:sqlite";
+import type { ExecuteResult, Statement } from "../src/cache/turso.ts";
+
+/**
+ * Stand-in for Turso: runs the mirror's statements on an in-memory SQLite (the engine Turso runs),
+ * and can be switched off to simulate an outage. Survives "restarts" of the EBS under test.
+ */
+export function fakeTurso() {
+  const db = new DatabaseSync(":memory:");
+  const state = { down: false, batches: 0 };
+  const remote = {
+    async batch(stmts: Statement[]): Promise<ExecuteResult[]> {
+      state.batches++;
+      if (state.down) throw new Error("Turso request failed: HTTP 503");
+      return stmts.map((s) => {
+        const st = db.prepare(s.sql);
+        const args = (s.args ?? []) as (string | number | null)[];
+        if (/^\s*(SELECT|WITH)\b/i.test(s.sql)) return { rows: st.all(...args) as ExecuteResult["rows"], affected: 0 };
+        return { rows: [], affected: Number(st.run(...args).changes) };
+      });
+    },
+  };
+  return { remote, db, state };
+}

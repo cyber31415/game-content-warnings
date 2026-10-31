@@ -82,6 +82,14 @@ a new URL is detected and resubscribed automatically. Free services sleep after 
 (first request then takes ~30–60 s) and start with an empty cache; broadcaster corrections survive
 because they're stored in Twitch's configuration service (`CORRECTIONS_STORE=twitch`).
 
+**Cache that survives restarts (optional, recommended on Render free):** create a free database at
+[Turso](https://app.turso.tech) (no card needed), copy its `libsql://` URL and a Read & Write token
+(**Create Token**, expiration Never), and add them in Render → **Environment** as `TURSO_DATABASE_URL`
+and `TURSO_AUTH_TOKEN`. The EBS then copies the DDD cache and daily usage totals to Turso and loads
+them back at every start, so waking from sleep costs no DDD requests for games already seen. The
+local SQLite stays the working copy; a Turso outage or a bad setting is logged and the EBS carries
+on without it. DDD's 30-day limit is enforced on the Turso copy too.
+
 **Any other host:**
 Any host with HTTPS on port 443 and a persistent disk for SQLite. The `Dockerfile` runs the EBS;
 mount a volume at `/data` and set the variables from `.env.example` with:
@@ -114,3 +122,6 @@ appears in the extension directory for any streamer to activate.
   until the next restart.
 - Watch the DDD quota: `GET /health` reports `dddQuota` (from DDD's rate-limit headers). 429s open a local
   circuit until `Retry-After`; viewers keep seeing cached data meanwhile.
+- `GET /usage` shows daily totals (wake-ups, viewer and config requests, CORS preflights, EventSub
+  deliveries, bytes sent, DDD requests) and the cache size. With Turso they cover the last 31 days;
+  without it, only since the last start. Counts only: no viewer, channel or IP information.

@@ -51,16 +51,20 @@ const CatalogSchema = z.object({
   categories: DddTopicCategorySchema.array(),
   superCategories: DddTopicSuperCategorySchema.array(),
 });
-const GameRowSchema = z.object({
-  twitch_game_id: z.string().min(1),
-  twitch_name: z.string(),
-  ddd_item_id: z.number().int().nullable(),
-  confidence: z.number(),
-  status: z.enum(["matched", "no_match", "low_confidence"]),
-  candidates_json: z.string(),
-  seen_count: z.number().int(),
-  updated_at: z.number().int(),
-});
+// Same shape as match/matcher.ts Candidate; WarningsService.candidatesFor parses it for the config page.
+const CandidatesSchema = z.array(z.object({ id: z.number().int(), name: z.string(), releaseYear: z.number().int().nullable(), score: z.number() }));
+const GameRowSchema = z
+  .object({
+    twitch_game_id: z.string().min(1),
+    twitch_name: z.string(),
+    ddd_item_id: z.number().int().nullable(),
+    confidence: z.number(),
+    status: z.enum(["matched", "no_match", "low_confidence"]),
+    candidates_json: z.string(),
+    seen_count: z.number().int(),
+    updated_at: z.number().int(),
+  })
+  .refine((r) => parsesAs(CandidatesSchema, r.candidates_json));
 const ItemRowSchema = z
   .object({ ddd_item_id: z.number().int().positive(), payload_json: z.string().min(2), fetched_at: z.number().int() })
   .refine((r) => parsesAs(DddItemDetailSchema.refine((item) => item.id === r.ddd_item_id), r.payload_json));

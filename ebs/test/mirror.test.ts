@@ -273,3 +273,24 @@ test("cached DDD payloads in Turso that no longer validate are skipped and refet
   assert.ok(second.up.dddCalls.includes("/api/v3/topics"));
   await second.app.close();
 });
+
+test("a game match whose stored candidates no longer parse is skipped, so the config page keeps working", async () => {
+  const turso = fakeTurso();
+  const first = await boot(turso);
+  assert.equal((await first.app.inject({ url: "/api/warnings", headers: await auth() })).json().status, "ok");
+  await first.mirror.idle();
+  await first.app.close();
+
+  turso.db.exec("UPDATE game_map SET candidates_json = '[{\"id\":\"x\"'"); // truncated
+  const store = new Store(":memory:");
+  const summary = await new CacheMirror({ store, remote: turso.remote }).restore(Date.now() - 30 * DAY);
+  assert.equal(summary.skipped, summary.games, "every game_map row with bad candidates is skipped");
+  assert.equal(store.getGameMap("1001"), undefined);
+
+  const second = await boot(turso);
+  const headers = { authorization: `Bearer ${await signViewerToken({ channel_id: "12345", role: "broadcaster", user_id: "12345" })}` };
+  const res = await second.app.inject({ url: "/api/broadcaster/config", headers });
+  assert.equal(res.statusCode, 200);
+  assert.ok(Array.isArray(res.json().candidates));
+  await second.app.close();
+});

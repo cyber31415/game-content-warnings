@@ -2,6 +2,8 @@ import { z } from "zod";
 import type { CacheChange, GameMapRow, Store } from "./db.ts";
 import type { Row, Statement, TursoClient } from "./turso.ts";
 import { USAGE_FIELDS, emptyCounts, type UsageCounts, type UsageStats } from "../usage.ts";
+import { DddItemDetailSchema, DddTopicCategorySchema, DddTopicSchema, DddTopicSuperCategorySchema } from "../ddd/schema.ts";
+import { META_KEY } from "../topics.ts";
 
 // Copies the DDD cache and usage counters to Turso, because the free host wipes its disk on every
 // sleep and restart. The local SQLite stays the working copy (fast, synchronous); the mirror is
@@ -35,6 +37,20 @@ type Remote = Pick<TursoClient, "batch">;
 export type RestoreSummary = { games: number; items: number; meta: number; skipped: number };
 
 // Rows read back from Turso are upstream data like any other: validated, and bad rows skipped.
+// That includes the cached DDD payloads: they now outlive deploys, so one that's truncated, or
+// written before a schema change, must be refetched rather than fail every request for its game.
+const parsesAs = (schema: z.ZodType, s: string) => {
+  try {
+    return schema.safeParse(JSON.parse(s)).success;
+  } catch {
+    return false;
+  }
+};
+const CatalogSchema = z.object({
+  topics: DddTopicSchema.array(),
+  categories: DddTopicCategorySchema.array(),
+  superCategories: DddTopicSuperCategorySchema.array(),
+});
 const GameRowSchema = z.object({
   twitch_game_id: z.string().min(1),
   twitch_name: z.string(),
@@ -45,8 +61,13 @@ const GameRowSchema = z.object({
   seen_count: z.number().int(),
   updated_at: z.number().int(),
 });
-const ItemRowSchema = z.object({ ddd_item_id: z.number().int().positive(), payload_json: z.string().min(2), fetched_at: z.number().int() });
-const MetaRowSchema = z.object({ key: z.string().min(1), payload_json: z.string().min(2), fetched_at: z.number().int() });
+const ItemRowSchema = z
+  .object({ ddd_item_id: z.number().int().positive(), payload_json: z.string().min(2), fetched_at: z.number().int() })
+  .refine((r) => parsesAs(DddItemDetailSchema.refine((item) => item.id === r.ddd_item_id), r.payload_json));
+// The topic catalogue is the only thing cached under ddd_meta.
+const MetaRowSchema = z
+  .object({ key: z.literal(META_KEY), payload_json: z.string().min(2), fetched_at: z.number().int() })
+  .refine((r) => parsesAs(CatalogSchema, r.payload_json));
 
 export class CacheMirror {
   private readonly store: Store;

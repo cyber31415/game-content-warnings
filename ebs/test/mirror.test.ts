@@ -8,6 +8,8 @@ import { UsageStats } from "../src/usage.ts";
 import { fakeTurso, signViewerToken, testDeps } from "./helpers.ts";
 
 const DAY = 24 * 60 * 60_000;
+/** A cached DDD item payload in the real v3 shape. */
+const itemJson = (id: number) => JSON.stringify({ id, name: `Game ${id}`, releaseYear: null, itemTypeName: "Video Game", topicItemStats: [] });
 const auth = async () => ({ authorization: `Bearer ${await signViewerToken({ channel_id: "12345" })}` });
 
 /** One EBS "process": fresh local store (the free host's wiped disk), shared Turso. */
@@ -44,8 +46,8 @@ test("the 30-day DDD limit applies to the copy: old rows are purged there and ne
   const mirror = new CacheMirror({ store, remote: turso.remote });
   mirror.attach();
   const now = Date.now();
-  store.putItem(1, '{"old":true}', now - 31 * DAY);
-  store.putItem(2, '{"new":true}', now - 1 * DAY);
+  store.putItem(1, itemJson(1), now - 31 * DAY);
+  store.putItem(2, itemJson(2), now - 1 * DAY);
   store.putMeta("old-meta", "{}", now - 40 * DAY);
   await mirror.idle();
 
@@ -224,8 +226,8 @@ test("the Turso copy keeps DDD data for 8 days only (it can't be cleaned while t
   const mirror = new CacheMirror({ store, remote: turso.remote });
   mirror.attach();
   const now = Date.now();
-  store.putItem(1, '{"a":1}', now - 10 * DAY);
-  store.putItem(2, '{"b":2}', now - 6 * DAY);
+  store.putItem(1, itemJson(1), now - 10 * DAY);
+  store.putItem(2, itemJson(2), now - 6 * DAY);
   store.putMeta("catalog", "{}", now - 9 * DAY);
   await mirror.idle();
 
@@ -244,4 +246,30 @@ test("the Turso copy keeps DDD data for 8 days only (it can't be cleaned while t
   assert.ok(fresh.getItem(2));
   assert.equal(fresh.getItem(3), undefined);
   assert.equal(turso.db.prepare("SELECT COUNT(*) AS n FROM ddd_item_cache WHERE ddd_item_id = 3").get()!.n, 0, "deleted from Turso at startup");
+});
+
+test("cached DDD payloads in Turso that no longer validate are skipped and refetched, not served", async () => {
+  const turso = fakeTurso();
+  const first = await boot(turso);
+  assert.equal((await first.app.inject({ url: "/api/warnings", headers: await auth() })).json().status, "ok");
+  await first.mirror.idle();
+  await first.app.close();
+
+  // E.g. a truncated write, or payloads saved before a schema change: valid rows, unusable JSON.
+  turso.db.exec(`UPDATE ddd_item_cache SET payload_json = '{"id":101}'`); // no name
+  turso.db.exec(`UPDATE ddd_meta SET payload_json = '{"topics":"x"}'`);
+  turso.db.prepare("INSERT INTO ddd_item_cache VALUES (202, ?, ?)").run(itemJson(999), Date.now()); // id mismatch
+  const store = new Store(":memory:");
+  const summary = await new CacheMirror({ store, remote: turso.remote }).restore(Date.now() - 30 * DAY);
+  assert.equal(summary.skipped, 3);
+  assert.equal(store.getItem(101), undefined);
+  assert.equal(store.getItem(202), undefined);
+  assert.equal(store.getMeta("topic-catalog"), undefined);
+
+  const second = await boot(turso);
+  const res = await second.app.inject({ url: "/api/warnings", headers: await auth() });
+  assert.equal(res.json().status, "ok", "served after refetching, not an error");
+  assert.ok(second.up.dddCalls.some((c) => c === "/api/v3/items/101"));
+  assert.ok(second.up.dddCalls.includes("/api/v3/topics"));
+  await second.app.close();
 });

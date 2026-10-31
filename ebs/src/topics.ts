@@ -6,7 +6,8 @@ import type { DddTopic, DddTopicCategory, DddTopicSuperCategory } from "./ddd/sc
 const DAY = 24 * 60 * 60_000;
 const CATALOG_TTL = 7 * DAY;
 const CATALOG_MAX_STALE = 30 * DAY; // DDD terms: never use cached data older than 30 days
-const META_KEY = "topic-catalog";
+/** Key of the topic catalogue in the ddd_meta cache table. */
+export const META_KEY = "topic-catalog";
 const STALE_RETRY = 10 * 60_000; // while serving a stale catalogue, retry DDD at most this often
 const FAILURE_BACKOFF = 60_000; // with nothing cached, don't retry DDD more often than this
 

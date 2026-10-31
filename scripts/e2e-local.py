@@ -61,6 +61,13 @@ def shot(page: Page, name: str) -> None:
     print(f"  screenshot {name}.png")
 
 
+def expected_confirmed() -> int:
+    """Confirmed count for the mock's main item, from the captured DDD data (votes change between captures)."""
+    fixtures = ROOT / "ebs" / "test" / "fixtures" / "ddd"
+    spoilers = {t["id"] for t in json.loads((fixtures / "topics.json").read_text()) if t.get("topicCategoryId") == 13}
+    item = json.loads((fixtures / "item-14438.json").read_text())
+    return sum(1 for st in item["topicItemStats"] if st["yesSum"] >= 1 and st["yesSum"] > st["noSum"] and st["topicId"] not in spoilers)
+
 def panel(page: Page, theme: str = "dark") -> None:
     page.goto(f"{BASE}/harness/panel.html?channel={CHANNEL}&theme={theme}&game=Just%20Making%20a%20CLI")
 
@@ -88,7 +95,7 @@ def main() -> int:
         expect(page.locator("h1")).to_contain_text("Content warnings")
         expect(page.locator(".game")).to_have_text("Just Making a CLI", timeout=20_000)  # cold DDD cache
         expect(page.locator("#search")).to_be_visible()
-        expect(page.locator(".total")).to_have_text(" · 85 confirmed")  # 87 Yes minus 2 DDD "Spoiler" topics
+        expect(page.locator(".total")).to_have_text(f" · {expected_confirmed()} confirmed")
         groups = page.locator("details.group")
         expect(groups.first).to_be_visible()
         n_groups = groups.count()

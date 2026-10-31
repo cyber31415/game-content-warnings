@@ -125,3 +125,5 @@ appears in the extension directory for any streamer to activate.
 - `GET /usage` shows daily totals (wake-ups, viewer and config requests, CORS preflights, EventSub
   deliveries, bytes sent, DDD requests) and the cache size. With Turso they cover the last 31 days;
   without it, only since the last start. Counts only: no viewer, channel or IP information.
+  `.venv/bin/python scripts/usage-report.py` prints a readable summary with a month-end DDD forecast
+  (fetching it counts as a request, so it wakes the free host if it's asleep).

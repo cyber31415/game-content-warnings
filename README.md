@@ -52,8 +52,9 @@ npm test && npm run typecheck
 ```
 
 You need your own [DoesTheDogDie API key](https://www.doesthedogdie.com/api) in `.env`
-(copy `.env.example`). Real DDD responses are never committed (DDD's terms don't allow
-redistributing their data); capture them locally to enable the fixture tests and the mock server:
+(copy `.env.example`). Raw DDD API responses are never committed (DDD's terms don't allow
+redistributing their data as data; the listing screenshots show real data only as the panel displays it);
+capture them locally to enable the fixture tests and the mock server:
 
 ```sh
 node --env-file=.env scripts/capture-ddd-fixtures.ts

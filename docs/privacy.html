@@ -41,7 +41,9 @@ information about viewers.</p>
   that choice (game ID and entry ID) is saved in Twitch's Extension Configuration Service for that channel, with a
   copy in our server's cache.</li>
   <li><strong>Public game data:</strong> Twitch category names and DoesTheDogDie content-warning data, cached to
-  keep the extension fast. Cached DoesTheDogDie data is refreshed and never kept longer than 30 days.</li>
+  keep the extension fast. Cached DoesTheDogDie data is refreshed regularly and never shown once it is more than
+  30 days old. It is deleted automatically by then or, if our server was asleep at that point, as soon as it next
+  starts.</li>
   <li><strong>Usage totals:</strong> daily counts of requests served, data sent and requests made to
   DoesTheDogDie, used to keep the service within its limits. They contain no viewer, channel or IP information.</li>
 </ul>

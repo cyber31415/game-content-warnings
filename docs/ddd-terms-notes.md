@@ -14,6 +14,7 @@ it before changing how the extension uses the data.
 | User-Agent | Generic client UAs (curl, node, axios, python-requests…) get HTTP 403 | EBS sends `TwitchContentWarningsEBS/0.1` |
 | Spoiler/sensitive flags | Not in v3. v3 has a "Spoiler" topic category (cliffhanger, sad ending, end-credits scene, Santa spoiled) | Those topics are excluded (`SPOILER_CATEGORY_ID` in `ebs/src/topics.ts`); categories start collapsed |
 | Display rule | DDD's site highlights Yes when yes > no; ties highlight nothing; voting needs a login + reCAPTCHA; some answers are moderator-"VERIFIED" (not exposed in v3) | Same rule: shown when yes > no, a single vote counts, ties hidden; "few votes" tag when fewer than 3 votes |
+| Listing screenshots | Data may be shown to End Users within the Application, never redistributed "as data" | `assets/listing/screenshot-*.png` show real usage: The Last of Us's actual warnings as the panel displays them, with the attribution. Kept real on purpose (owner's decision, 2026-10-31: no made-up content without a good reason). Raw API responses stay out of the repo |
 | Catalogue gaps | Item stats reference topics `/topics` doesn't list (e.g. "Someone attempts suicide") | Kept, grouped by keyword (`fallbackGroup`), logged once |
 
 ## Quota math (free tier)

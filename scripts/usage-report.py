@@ -3,6 +3,8 @@
     .venv/bin/python scripts/usage-report.py                      (live: fetches /usage)
     .venv/bin/python scripts/usage-report.py --file usage.json    (a saved copy)
     .venv/bin/python scripts/usage-report.py --url https://other-host
+    .venv/bin/python scripts/usage-report.py --save before.json           (keep a snapshot, e.g. before a stream)
+    .venv/bin/python scripts/usage-report.py --since before.json          (what happened since that snapshot)
 
 Note: fetching /usage is a request like any other, so it wakes the free host if it's asleep.
 """
@@ -11,7 +13,7 @@ import argparse
 import calendar
 import json
 import urllib.request
-from datetime import date
+from datetime import date, datetime, timezone
 
 DEFAULT_URL = "https://game-content-warnings.onrender.com"
 
@@ -28,8 +30,18 @@ def main() -> None:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--url", default=DEFAULT_URL)
     p.add_argument("--file")
+    p.add_argument("--save", help="also write the raw /usage data to this file, with the time it was taken")
+    p.add_argument("--since", help="report only the change since a snapshot made with --save")
     args = p.parse_args()
     u = load(args)
+    if args.save:
+        with open(args.save, "w", encoding="utf-8") as f:
+            json.dump({**u, "snapshotTakenAt": datetime.now(timezone.utc).isoformat(timespec="seconds")}, f, indent=2)
+        print(f"Saved snapshot to {args.save}")
+    if args.since:
+        with open(args.since, encoding="utf-8") as f:
+            since(json.load(f), u)
+        return
 
     today = date.today()
     month = today.strftime("%Y-%m")
@@ -70,6 +82,30 @@ def main() -> None:
         print("Per day (newest first):  day         wakes  panel  DDD   MB")
         for d in days[:14]:
             print(f"                         {d['day']}  {d['wakeups']:>5}  {d['viewerRequests']:>5}  {d['dddRequests']:>3}  {d['bytesSent'] / 1_048_576:5.2f}")
+
+
+def since(before: dict, after: dict) -> None:
+    """Change in every counter between two snapshots (sums all saved days, so streams that cross
+    midnight UTC are counted whole)."""
+    fields = ["wakeups", "viewerRequests", "configRequests", "preflights", "eventsubNotifications",
+              "otherRequests", "healthChecks", "bytesSent", "dddRequests"]
+    total = lambda u, f: sum(d.get(f, 0) for d in u["days"])
+    start = datetime.fromisoformat(before["snapshotTakenAt"])
+    hours = (datetime.now(timezone.utc) - start).total_seconds() / 3600
+    print(f"Change since {before['snapshotTakenAt']} ({hours:.1f} h ago):")
+    labels = {"wakeups": "Wake-ups", "viewerRequests": "Panel requests", "configRequests": "Config page requests",
+              "preflights": "Browser preflights", "eventsubNotifications": "Twitch category events",
+              "otherRequests": "Other (pages, /usage)", "healthChecks": "Host health checks", "dddRequests": "DoesTheDogDie requests"}
+    for f in fields:
+        d = total(after, f) - total(before, f)
+        if f == "bytesSent":
+            print(f"  {'Data sent':<24}{d / 1_048_576:>9.2f} MB")
+        else:
+            print(f"  {labels[f]:<24}{d:>9}")
+    b, a = (before.get("dddQuota") or {}).get("remainingMonth"), (after.get("dddQuota") or {}).get("remainingMonth")
+    if b is not None and a is not None:
+        print(f"  DoesTheDogDie's own count: {b - a} used ({a} left)")
+    print("  (/usage keeps the last 31 days; snapshots further apart than that undercount)")
 
 
 if __name__ == "__main__":

@@ -13,7 +13,7 @@ import argparse
 import calendar
 import json
 import urllib.request
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 
 DEFAULT_URL = "https://game-content-warnings.onrender.com"
 
@@ -46,7 +46,7 @@ def main() -> None:
         since(before, u)
         return
 
-    today = date.today()
+    today = datetime.now(timezone.utc).date()  # /usage days are UTC
     month = today.strftime("%Y-%m")
     days = [d for d in u["days"] if d["day"].startswith(month)]
     tot = lambda field: sum(d.get(field, 0) for d in days)
@@ -107,7 +107,10 @@ def since(before: dict, after: dict) -> None:
             print(f"  {labels[f]:<24}{d:>9}")
     b, a = (before.get("dddQuota") or {}).get("remainingMonth"), (after.get("dddQuota") or {}).get("remainingMonth")
     if b is not None and a is not None:
-        print(f"  DoesTheDogDie's own count: {b - a} used ({a} left)")
+        if a > b:
+            print(f"  DoesTheDogDie's own count: reset between the snapshots (monthly allowance), {a} left now")
+        else:
+            print(f"  DoesTheDogDie's own count: {b - a} used ({a} left)")
     print("  (/usage keeps the last 31 days; snapshots further apart than that undercount)")
 
 

@@ -39,7 +39,9 @@ current category. Background and decisions: `PROJECT_BRIEF.md`. How to run/deplo
   because Render's free disk is wiped whenever the service sleeps.
 - With `TURSO_DATABASE_URL`/`TURSO_AUTH_TOKEN` set, `cache/mirror.ts` copies the DDD cache and usage
   totals to Turso (HTTP API, `cache/turso.ts`) and restores them at startup. Local SQLite stays the
-  working copy; Turso must never be able to break serving. Local libSQL server for tests: `.venv/bin/sqld`.
+  working copy; Turso must never be able to break serving. The Turso copy keeps DDD data for 8 days
+  only (`REMOTE_RETENTION_MS`), because it can't be cleaned while the free host sleeps. Local libSQL
+  server for tests: `.venv/bin/sqld`.
 - Product rules: Yes-only list, no story spoilers, no descriptions/vote counts, no topic hiding,
   always labelled "Unofficial" (see README).
 - No links in the extension at all: Twitch rejected 0.1.0 under guideline 4.5 for its

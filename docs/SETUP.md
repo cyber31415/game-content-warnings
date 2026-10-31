@@ -90,7 +90,9 @@ they're stored in Twitch's configuration service (`CORRECTIONS_STORE=twitch`).
 and `TURSO_AUTH_TOKEN`. The EBS then copies the DDD cache and daily usage totals to Turso and loads
 them back at every start, so waking from sleep costs no DDD requests for games already seen. The
 local SQLite stays the working copy; a Turso outage or a bad setting is logged and the EBS carries
-on without it. DDD's 30-day limit is enforced on the Turso copy too.
+on without it. DDD's 30-day limit: the Turso copy keeps DDD data for 8 days only, since it can only be
+cleaned while the EBS runs (at startup and every 6 h); after a sleep longer than that, games are
+re-fetched once. The local cache keeps its 30-day stale fallback.
 
 **Any other host:**
 Any host with HTTPS on port 443 and a persistent disk for SQLite. The `Dockerfile` runs the EBS;
@@ -112,8 +114,8 @@ Upload `dist/frontend-<version>.zip` under the version's **Files**, then move th
 
 ## 7. Review submission
 Twitch requires, before submitting: Privacy Policy URL, EULA/Terms URL, a walkthrough guide for
-reviewers, changelog, and a testing channel. The frontend is already unminified; the only remote
-script is the Twitch helper, and it contains no links (off-site links fail review under guideline 4.5).
+reviewers, changelog, and a testing channel. The frontend is unminified, loads no remote script
+except the Twitch helper, and contains no links (off-site links fail review under guideline 4.5).
 `docs/CONSOLE.md` has the exact text submitted for 0.1.1. Then **Submit for Review**. Once approved,
 **Release** it. Any streamer can then activate it, unless the version's **Streamer Allowlist**
 (Access tab) restricts installs, as it does for 0.1.1. A released version's fields are locked:
@@ -135,3 +137,5 @@ host don't.
   summary with a month-end DDD forecast. `--save before.json` keeps a snapshot, and `--since before.json`
   reports what changed since then (e.g. one stream). Fetching counts as a request, so it wakes the free
   host if it's asleep.
+- Retiring the extension: delete the Turso database (app.turso.tech) and the Render service, so no
+  cached DDD data is left behind (DDD terms: delete cached data on termination).

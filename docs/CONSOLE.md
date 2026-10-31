@@ -155,7 +155,7 @@ CHANGE LOG
   released, its fields are locked: start the next version with **Create New Version** or **Clone**
   (check every tab afterwards; it isn't documented which fields a clone copies). Backend changes on
   Render never need a new version, as long as the address in "Allowlist for URL Fetching Domains" stays
-  the same.
+  the same and the API keeps answering in the format the released panel expects.
 - In Hosted Test the allowlists are enforced: if the panel shows "unavailable", check
   "Allowlist for URL Fetching Domains" first.
 - Mobile testing: the phone must be signed in as the owner or an allowlisted test account.

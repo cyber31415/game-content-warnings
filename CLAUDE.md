@@ -46,3 +46,5 @@ current category. Background and decisions: `PROJECT_BRIEF.md`. How to run/deplo
   always labelled "Unofficial" (see README).
 - No links in the extension at all: Twitch rejected 0.1.0 under guideline 4.5 for its
   doesthedogdie.com links, and text that points viewers to the site instead isn't allowed either.
+- The released frontend (0.1.1) is frozen: `frontend/src` changes only ship with a new reviewed
+  version, so EBS changes must keep `/api/*` responses compatible with what the released panel expects.

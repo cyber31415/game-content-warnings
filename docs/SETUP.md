@@ -120,7 +120,7 @@ except the Twitch helper, and contains no links (off-site links fail review unde
 **Release** it. Any streamer can then activate it, unless the version's **Streamer Allowlist**
 (Access tab) restricts installs, as it does for 0.1.1. A released version's fields are locked:
 panel, console or allowlist changes need a new version and another review. Backend changes on the
-host don't.
+host don't, as long as the API stays compatible with the released panel.
 
 ## Operations
 - `data/match-audit-*.md` and the `game_map` table (`status != 'matched'`) show categories that

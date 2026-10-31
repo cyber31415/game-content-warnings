@@ -94,8 +94,10 @@ def since(before: dict, after: dict) -> None:
               "otherRequests", "healthChecks", "bytesSent", "dddRequests"]
     total = lambda u, f: sum(d.get(f, 0) for d in u["days"])
     start = datetime.fromisoformat(before["snapshotTakenAt"])
-    hours = (datetime.now(timezone.utc) - start).total_seconds() / 3600
-    print(f"Change since {before['snapshotTakenAt']} ({hours:.1f} h ago):")
+    # Comparing two saved snapshots (--file after.json): measure up to when the second was taken.
+    end = datetime.fromisoformat(after["snapshotTakenAt"]) if "snapshotTakenAt" in after else datetime.now(timezone.utc)
+    hours = (end - start).total_seconds() / 3600
+    print(f"Change from {before['snapshotTakenAt']} to {end.isoformat(timespec='seconds')} ({hours:.1f} h):")
     labels = {"wakeups": "Wake-ups", "viewerRequests": "Panel requests", "configRequests": "Config page requests",
               "preflights": "Browser preflights", "eventsubNotifications": "Twitch category events",
               "otherRequests": "Other (pages, /usage)", "healthChecks": "Host health checks", "dddRequests": "DoesTheDogDie requests"}

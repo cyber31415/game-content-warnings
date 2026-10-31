@@ -6,6 +6,9 @@ marked * come from third-party guides, so trust the console's own counter.
 
 Backend: `https://game-content-warnings.onrender.com` (Render free tier).
 
+**Status:** 0.1.1 approved and released (October 2026), with the values below. Released versions are
+locked, so any change to these fields means a new version and another review (see Gotchas).
+
 ## 1. Create Extension
 | Field | Value |
 |---|---|
@@ -62,7 +65,7 @@ Copy into the EBS environment (`.env` locally, host secrets in production):
 | Viewer Summary (≤140) | Tap a category to see its confirmed warnings, or search for a specific trigger. Updates when the streamer switches games. *(121 chars)* |
 | Author Name | cyber31415 |
 | General Category | **Extension for Games** |
-| Category (required, up to 15 Twitch categories; discovery only, the panel works on every game) | Story-heavy / horror games, e.g. The Last of Us Part I, The Last of Us Part II, Resident Evil 4, Silent Hill 2, Alan Wake 2, Dead Space, Outlast, Phasmophobia, Baldur's Gate 3, Red Dead Redemption 2 |
+| Category (required, up to 15 Twitch categories; discovery only, the panel works on every game) | As submitted: Grand Theft Auto V, Dead by Daylight, Baldur's Gate 3, RESIDENT EVIL: requiem, The Last of Us Part II, SILENT HILL f, SILENT HILL 2, Until Dawn, Red Dead Redemption II, Alan Wake II, Death Stranding 2: On the Beach, Resident Evil 4, Clair Obscur: Expedition 33, Lethal Company, Phasmophobia |
 | Taskbar Icon Image (24×24) | *(skip: video extensions only)* |
 | Logo Image (100×100 PNG) | `assets/listing/logo-100.png` |
 | Discovery Image (300×200 PNG) | `assets/listing/discovery-300x200.png` |
@@ -92,8 +95,17 @@ The extension stores no viewer information. Powered by DoesTheDogDie.com.
 ```fish
 EBS_URL=https://game-content-warnings.onrender.com node scripts/build-frontend.ts --zip     # -> dist/frontend-0.1.1.zip (~15 KB)
 ```
-Upload the zip, then **Move to Hosted Test**. Access tab: the owner account is allowed by default;
-add test accounts or streamers if others should see it.
+Upload the zip, then **Move to Hosted Test**.
+
+**Access tab** (0.1.1 as released):
+
+| Field | Value |
+|---|---|
+| Streamer Allowlist (who may install after release; empty = everyone) | CyberSpaceman_, hekimae (deliberately small first release) |
+| Testing Account Allowlist (who sees an unreleased version) | the owner (included by default) |
+
+Twitch's docs say changing the allowlist after review requires re-submitting the extension. Add anyone
+who should be on it before you submit.
 
 ## 8. Submit for Review
 The form has two fields plus a checkbox. Before submitting, activate the extension as a panel on the
@@ -139,7 +151,11 @@ CHANGE LOG
 
 ## Gotchas
 - Only one version can be in Review, and an approved-but-unreleased version also blocks the slot.
-- Editing any version field sends it back to Local Test.
+- Editing any version field sends it back to Local Test. Once a version is in review, approved or
+  released, its fields are locked: start the next version with **Create New Version** or **Clone**
+  (check every tab afterwards; it isn't documented which fields a clone copies). Backend changes on
+  Render never need a new version, as long as the address in "Allowlist for URL Fetching Domains" stays
+  the same.
 - In Hosted Test the allowlists are enforced: if the panel shows "unavailable", check
   "Allowlist for URL Fetching Domains" first.
 - Mobile testing: the phone must be signed in as the owner or an allowlisted test account.

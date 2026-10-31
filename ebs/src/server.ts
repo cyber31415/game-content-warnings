@@ -64,6 +64,27 @@ export async function buildServer(deps: Deps): Promise<FastifyInstance> {
     log: app.log,
   });
 
+  if (usage) {
+    // Requests and bytes per category of route; the socket counter includes headers and
+    // reflects compression, i.e. roughly what the host bills as outbound bandwidth. Registered
+    // before the CORS and rate-limit plugins: they answer preflights and 429s from their own
+    // onRequest hooks, which would otherwise skip this one and leave no starting point.
+    const startBytes = new WeakMap<object, number>();
+    app.addHook("onRequest", async (req) => {
+      startBytes.set(req, req.raw.socket?.bytesWritten ?? 0);
+    });
+    app.addHook("onResponse", async (req, reply) => {
+      const field = requestField(req.method, req.url);
+      usage.add(field);
+      // The host's health checks run on its internal network: not viewer traffic, not counted as bandwidth.
+      if (field === "healthChecks") return;
+      const start = startBytes.get(req);
+      const sent = start === undefined ? 0 : (req.raw.socket?.bytesWritten ?? 0) - start;
+      usage.add("bytesSent", sent > 0 ? sent : Number(reply.getHeader("content-length")) || 0);
+    });
+    ddd.onRequest = () => usage.add("dddRequests");
+  }
+
   await app.register(compress, { global: true, threshold: 2048 });
   await app.register(cors, {
     origin: config.allowedOrigins,
@@ -82,24 +103,6 @@ export async function buildServer(deps: Deps): Promise<FastifyInstance> {
       return (typeof v === "string" && v.split(",")[0]!.trim()) || req.ip;
     },
   });
-
-  if (usage) {
-    // Requests and bytes per category of route; the socket counter includes headers and
-    // reflects compression, i.e. roughly what the host bills as outbound bandwidth.
-    const startBytes = new WeakMap<object, number>();
-    app.addHook("onRequest", async (req) => {
-      startBytes.set(req, req.raw.socket?.bytesWritten ?? 0);
-    });
-    app.addHook("onResponse", async (req, reply) => {
-      const field = requestField(req.method, req.url);
-      usage.add(field);
-      // The host's health checks run on its internal network: not viewer traffic, not counted as bandwidth.
-      if (field === "healthChecks") return;
-      const sent = (req.raw.socket?.bytesWritten ?? 0) - (startBytes.get(req) ?? 0);
-      usage.add("bytesSent", sent > 0 ? sent : Number(reply.getHeader("content-length")) || 0);
-    });
-    ddd.onRequest = () => usage.add("dddRequests");
-  }
 
   await app.register(healthRoutes({ ddd, store, ...(usage && { usage }), ...(mirror && { mirror }) }));
   await app.register(legalRoutes({ ...config.legal, updated: LEGAL_UPDATED }));

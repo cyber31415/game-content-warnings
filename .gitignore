@@ -18,6 +18,7 @@ twitch_*.txt
 ddd_api.txt
 *secret*.txt
 *creds*.txt
+/*.txt
 
 # Screenshots dropped in the project root (e.g. for Claude): keep out of git
 /*.png

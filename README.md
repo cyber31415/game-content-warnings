@@ -10,11 +10,15 @@ streaming, and updates by itself when the streamer switches category.
 
 ![Panel screenshot](assets/listing/screenshot-1.png)
 
+**Status:** version 0.1.1 is approved and released on Twitch. For now its Streamer Allowlist limits
+installs to two channels, so it isn't installable by everyone yet. Its viewers are not limited.
+
 ## What viewers see
 - Only confirmed **Yes** warnings (Yes votes outnumber No; a "few votes" tag marks thin data)
 - Grouped under broad categories that start collapsed, with search at the top
 - No story spoilers and no extra detail: just the triggers
 - Light and dark themes, works on mobile
+- No links: nothing sends viewers off Twitch (guideline 4.5), so "Powered by DoesTheDogDie.com" is plain text
 
 Streamers can correct a wrong game match on the configuration page. Nothing else is configurable,
 so viewers always see every confirmed warning, unedited.
@@ -28,14 +32,17 @@ Viewer panel (Twitch CDN) --JWT--> EBS (Node.js) --> Twitch Helix: channel's cur
                                        |----------> DoesTheDogDie API v3 (cached, rate-limited)
 Streamer changes category --> EventSub channel.update --> EBS --> Extension PubSub --> panels re-render
 ```
-- `ebs/`: Extension Backend Service (Fastify, node:sqlite cache, zod-validated upstream data)
+- `ebs/`: Extension Backend Service (Fastify, node:sqlite cache, zod-validated upstream data). An
+  optional [Turso](https://turso.tech) copy of the cache keeps it across restarts on hosts that wipe
+  their disk, and `GET /usage` reports daily usage totals (counts only)
 - `frontend/`: panel + config page, plain TypeScript compiled to readable ES modules (no bundler)
 - `shared/`: API types shared by both
 - `docs/`: [setup and deployment](docs/SETUP.md), [Developer Console worksheet](docs/CONSOLE.md),
   [DDD terms notes](docs/ddd-terms-notes.md)
 
 ## Development
-Everything runs from a project-local virtual environment (Node 24, Twitch CLI, Python + Playwright):
+Everything runs from a project-local virtual environment (Node 24, Twitch CLI, GitHub CLI, a local
+libSQL server and the Turso CLI, Python + Playwright):
 
 ```sh
 bash scripts/bootstrap-venv.sh

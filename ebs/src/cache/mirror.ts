@@ -46,7 +46,8 @@ export class CacheMirror {
   /** Replaceable so the server can route warnings into its own log once it exists. */
   log: Logger;
   private chain: Promise<void> = Promise.resolve();
-  private schemaReady = false;
+  /** Shared by concurrent callers (restore, queued writes, /usage); cleared on failure to retry later. */
+  private schema: Promise<void> | undefined;
 
   constructor(opts: { store: Store; remote: Remote; usage?: UsageStats; log?: Logger }) {
     this.store = opts.store;
@@ -55,15 +56,19 @@ export class CacheMirror {
     this.log = opts.log ?? { warn: () => {} };
   }
 
-  private async ensureSchema(): Promise<void> {
-    if (this.schemaReady) return;
-    await this.remote.batch(REMOTE_SCHEMA.map((sql) => ({ sql })));
-    // Counters added after the table was first created become new columns (existing rows read 0).
-    const [cols] = await this.remote.batch([{ sql: "PRAGMA table_info(usage_daily)" }]);
-    const have = new Set(cols!.rows.map((r) => String(r.name)));
-    const missing = USAGE_FIELDS.filter((f) => !have.has(f));
-    if (missing.length) await this.remote.batch(missing.map((f) => ({ sql: `ALTER TABLE usage_daily ADD COLUMN ${f} INTEGER NOT NULL DEFAULT 0` })));
-    this.schemaReady = true;
+  private ensureSchema(): Promise<void> {
+    this.schema ??= (async () => {
+      await this.remote.batch(REMOTE_SCHEMA.map((sql) => ({ sql })));
+      // Counters added after the table was first created become new columns (existing rows read 0).
+      const [cols] = await this.remote.batch([{ sql: "PRAGMA table_info(usage_daily)" }]);
+      const have = new Set(cols!.rows.map((r) => String(r.name)));
+      const missing = USAGE_FIELDS.filter((f) => !have.has(f));
+      if (missing.length) await this.remote.batch(missing.map((f) => ({ sql: `ALTER TABLE usage_daily ADD COLUMN ${f} INTEGER NOT NULL DEFAULT 0` })));
+    })().catch((err: unknown) => {
+      this.schema = undefined;
+      throw err;
+    });
+    return this.schema;
   }
 
   /** Purges the copy to the DDD cutoff, then loads what's left into the local store. */

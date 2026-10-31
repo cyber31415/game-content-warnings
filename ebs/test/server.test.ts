@@ -259,6 +259,26 @@ test(".env.example as shipped (blank optional values) loads once the required se
   assert.equal(c.eventsub, undefined);
 });
 
+test("Turso settings: a bad or incomplete value turns the mirror off instead of stopping the EBS", () => {
+  assert.deepEqual(testConfig({ TURSO_DATABASE_URL: "libsql://db-org.turso.io", TURSO_AUTH_TOKEN: "t" }).turso, { url: "libsql://db-org.turso.io", authToken: "t" });
+  const none = testConfig();
+  assert.equal(none.turso, undefined);
+  assert.equal(none.tursoProblem, undefined);
+  const cases: [Record<string, string>, RegExp][] = [
+    [{ TURSO_DATABASE_URL: "not a url" }, /must look like libsql/],
+    [{ TURSO_AUTH_TOKEN: "tok-secret-123" }, /TURSO_DATABASE_URL isn't/],
+    [{ NODE_ENV: "production", CONTACT_EMAIL: "a@b.example", TURSO_DATABASE_URL: "libsql://db-org.turso.io" }, /TURSO_AUTH_TOKEN isn't/],
+  ];
+  for (const [env, problem] of cases) {
+    const c = testConfig(env);
+    assert.equal(c.turso, undefined);
+    assert.match(c.tursoProblem!, problem);
+    assert.ok(!c.tursoProblem!.includes("tok-secret-123") && !c.tursoProblem!.includes("not a url"), "never echoes the values");
+  }
+  // A local libSQL server for development needs no token.
+  assert.equal(testConfig({ TURSO_DATABASE_URL: "http://127.0.0.1:8097" }).turso?.authToken, undefined);
+});
+
 test("blank values for variables with defaults mean 'use the default'", () => {
   const c = testConfig({ PORT: "", EXT_NAME: "", NODE_ENV: "", HOST: "", DATABASE_PATH: "", TWITCH_API_BASE: "", TWITCH_TOKEN_URL: "", DDD_API_BASE: "" });
   assert.equal(c.port, 8081);

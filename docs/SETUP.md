@@ -40,8 +40,8 @@ Screenshots land in `data/screenshots/`.
 2. `cp .env.example .env`, fill `DDD_API_KEY`.
 3. `node --env-file=.env scripts/capture-ddd-fixtures.ts` captures real responses and checks
    them against our schemas (~8 requests). Confirm which `itemTypeName` video games use.
-4. Read `docs/ddd-terms-notes.md`. Ask DDD whether a free Twitch extension used on monetized
-   channels counts as commercial use **before** public release.
+4. Read `docs/ddd-terms-notes.md`. The Free tier is non-commercial (§9.1). That clause applies to the
+   extension itself, which earns nothing; see the notes for the reasoning and when to revisit it.
 
 ## 3. Twitch Developer Console (dev.twitch.tv/console/extensions)
 
@@ -74,13 +74,15 @@ on your channel, activate it as a panel, and switch categories to watch it updat
 ## 5. Deploy the EBS (needed for Hosted Test, review and live updates)
 
 **Render free tier (current setup):** `render.yaml` describes the service. In Render: **New → Blueprint**,
-pick this repo, and paste the five secrets it asks for (from your local `.env`). Render builds the
+pick this repo, and paste the five secrets it asks for (from your local `.env`), plus the two optional
+Turso values below (leave them empty to skip). Render builds the
 Dockerfile, gives it `https://<name>.onrender.com`, generates `EVENTSUB_SECRET`, and points the EventSub
 callback at `$RENDER_EXTERNAL_URL/eventsub` automatically. If you ever rotate `EVENTSUB_SECRET` on the
 same URL, delete the extension's EventSub subscriptions (Twitch can't tell us the secret changed);
 a new URL is detected and resubscribed automatically. Free services sleep after 15 minutes idle
-(first request then takes ~30–60 s) and start with an empty cache; broadcaster corrections survive
-because they're stored in Twitch's configuration service (`CORRECTIONS_STORE=twitch`).
+(first request then takes ~30–60 s) and start with an empty local disk: the cache is reloaded from Turso
+if it's configured, otherwise refilled from DDD. Broadcaster corrections survive either way, because
+they're stored in Twitch's configuration service (`CORRECTIONS_STORE=twitch`).
 
 **Cache that survives restarts (optional, recommended on Render free):** create a free database at
 [Turso](https://app.turso.tech) (no card needed), copy its `libsql://` URL and a Read & Write token
@@ -111,8 +113,12 @@ Upload `dist/frontend-<version>.zip` under the version's **Files**, then move th
 ## 7. Review submission
 Twitch requires, before submitting: Privacy Policy URL, EULA/Terms URL, a walkthrough guide for
 reviewers, changelog, and a testing channel. The frontend is already unminified; the only remote
-script is the Twitch helper. Then **Submit for Review**. Once approved, **Release** it and it
-appears in the extension directory for any streamer to activate.
+script is the Twitch helper, and it contains no links (off-site links fail review under guideline 4.5).
+`docs/CONSOLE.md` has the exact text submitted for 0.1.1. Then **Submit for Review**. Once approved,
+**Release** it. Any streamer can then activate it, unless the version's **Streamer Allowlist**
+(Access tab) restricts installs, as it does for 0.1.1. A released version's fields are locked:
+panel, console or allowlist changes need a new version and another review. Backend changes on the
+host don't.
 
 ## Operations
 - `data/match-audit-*.md` and the `game_map` table (`status != 'matched'`) show categories that
@@ -123,7 +129,9 @@ appears in the extension directory for any streamer to activate.
 - Watch the DDD quota: `GET /health` reports `dddQuota` (from DDD's rate-limit headers). 429s open a local
   circuit until `Retry-After`; viewers keep seeing cached data meanwhile.
 - `GET /usage` shows daily totals (wake-ups, viewer and config requests, CORS preflights, EventSub
-  deliveries, host health checks, bytes sent excluding health checks, DDD requests) and the cache size. With Turso they cover the last 31 days;
-  without it, only since the last start. Counts only: no viewer, channel or IP information.
-  `.venv/bin/python scripts/usage-report.py` prints a readable summary with a month-end DDD forecast
-  (fetching it counts as a request, so it wakes the free host if it's asleep).
+  deliveries, host health checks, bytes sent excluding health checks, DDD requests) and the cache
+  size. With Turso they cover the last 31 days; without it, only since the last start. Counts only:
+  no viewer, channel or IP information. `.venv/bin/python scripts/usage-report.py` prints a readable
+  summary with a month-end DDD forecast. `--save before.json` keeps a snapshot, and `--since before.json`
+  reports what changed since then (e.g. one stream). Fetching counts as a request, so it wakes the free
+  host if it's asleep.

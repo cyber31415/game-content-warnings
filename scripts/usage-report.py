@@ -40,7 +40,10 @@ def main() -> None:
         print(f"Saved snapshot to {args.save}")
     if args.since:
         with open(args.since, encoding="utf-8") as f:
-            since(json.load(f), u)
+            before = json.load(f)
+        if "snapshotTakenAt" not in before:
+            raise SystemExit(f"{args.since} is not a snapshot: make one with --save")
+        since(before, u)
         return
 
     today = date.today()

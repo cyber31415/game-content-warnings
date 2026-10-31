@@ -6,17 +6,23 @@ current category. Background and decisions: `PROJECT_BRIEF.md`. How to run/deplo
 ## Environment (important)
 - Everything runs from the project venv: `bash scripts/bootstrap-venv.sh`, then
   `source .venv/bin/activate.fish` (or `.venv/bin/activate`). It holds Node 24, npm, the
-  Twitch CLI, Python + Playwright (browser in `.venv/ms-playwright`).
+  Twitch CLI, the GitHub CLI, `sqld` (local libSQL server) and the Turso CLI, Python + Playwright
+  (browser in `.venv/ms-playwright`).
 - The repo is on a CIFS share **without symlinks or POSIX locks**:
   - npm uses `bin-links=false`; scripts call tools by path (`node node_modules/typescript/bin/tsc`). No npm workspaces.
   - SQLite on the share needs `DATABASE_VFS=unix-dotfile`. Never delete the DB while the EBS runs.
-  - Twitch CLI state lives in `~/.local/state/twitch-content-warnings` (its SQLite can't live on the share).
+  - Twitch CLI state lives in `~/.local/state/twitch-content-warnings` (its SQLite can't live on the share);
+    the Turso CLI's config is kept there too.
 
 ## Commands
 - `npm test` — EBS unit/integration tests (node:test, runs .ts directly)
 - `npm run typecheck` — EBS + frontend (TypeScript 7)
 - `bash scripts/local-stack.sh` — full stack on mocks; then `.venv/bin/python scripts/e2e-local.py`
 - `npm run build:frontend` / `EBS_URL=https://... node scripts/build-frontend.ts --zip`
+- `TURSO_TEST_URL=http://127.0.0.1:8097 npm test` — also runs the real libSQL round trip (start
+  `.venv/bin/sqld --http-listen-addr 127.0.0.1:8097 --db-path <local dir>` first; not on the CIFS share)
+- `.venv/bin/python scripts/usage-report.py` — readable `/usage` summary (`--save`/`--since` for
+  before/after snapshots). It contacts the live backend: only run it when the owner asks.
 
 ## Conventions
 - Node runs TypeScript natively: erasable syntax only (no enums/namespaces/parameter

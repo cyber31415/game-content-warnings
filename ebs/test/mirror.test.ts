@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { Agent, request } from "node:http";
 import { buildServer } from "../src/server.ts";
 import { Store } from "../src/cache/db.ts";
 import { CacheMirror } from "../src/cache/mirror.ts";
@@ -174,4 +175,45 @@ test("the host's health checks are counted on their own and left out of data sen
   await app.inject({ url: "/api/warnings", headers: await auth() });
   assert.ok([...usage.peek().values()][0]!.bytesSent > 0, "real requests still count bytes");
   await app.close();
+});
+
+test("concurrent first uses of Turso set the schema up once (no duplicate ALTER TABLE)", async () => {
+  const turso = fakeTurso();
+  turso.db.exec("CREATE TABLE usage_daily (day TEXT PRIMARY KEY, wakeups INTEGER NOT NULL DEFAULT 0)"); // old shape: columns missing
+  const usage = new UsageStats();
+  const mirror = new CacheMirror({ store: new Store(":memory:"), remote: turso.remote, usage });
+  usage.add("viewerRequests");
+  await Promise.all([mirror.usageHistory(), mirror.usageHistory(), mirror.flushUsage(), mirror.restore(0)]);
+  assert.equal((await mirror.usageHistory())[0]!.counts.viewerRequests, 1);
+});
+
+test("CORS preflights over a kept-alive connection count only their own bytes", async () => {
+  const d = testDeps();
+  const usage = new UsageStats();
+  const app = await buildServer({ ...d, usage });
+  await app.listen({ host: "127.0.0.1", port: 0 });
+  const port = (app.server.address() as { port: number }).port;
+  // One socket for everything, as a browser keeps one connection open to the EBS.
+  const agent = new Agent({ keepAlive: true, maxSockets: 1 });
+  const send = (method: string, headers: Record<string, string>) =>
+    new Promise<number>((resolve, reject) => {
+      const req = request({ host: "127.0.0.1", port, path: "/api/warnings", method, headers, agent }, (res) => {
+        res.resume();
+        res.on("end", () => resolve(res.statusCode ?? 0));
+      });
+      req.on("error", reject);
+      req.end();
+    });
+  const origin = "https://testclientid.ext-twitch.tv";
+  const bytes = () => [...usage.peek().values()][0]?.bytesSent ?? 0;
+  try {
+    for (let i = 0; i < 3; i++) assert.equal(await send("GET", { ...(await auth()), origin }), 200);
+    const before = bytes();
+    assert.equal(await send("OPTIONS", { origin, "access-control-request-method": "GET" }), 204);
+    const preflight = bytes() - before;
+    assert.ok(preflight > 0 && preflight < 600, `preflight counted as ${preflight} bytes`);
+  } finally {
+    agent.destroy();
+    await app.close();
+  }
 });
